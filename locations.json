@@ -1,0 +1,17 @@
+{
+  "West Tower": {
+    "background": "West_tower.png",
+    "music": "westtower.mp3",
+    "weather": "fog"
+  },
+  "East Tower": "East_tower.png",
+  "West Tower Perimeter (Outside Base)": "WestTower_Base.png",
+  "Observation Deck (West Tower)": "ObservationDeck_West.png",
+  "Sleeping Quarters (West Tower)": "SleepingQuarters.png",
+  "Deep in the Gorge / Depths": {
+    "background": "GorgeDepths.png",
+    "music": "depths.mp3",
+    "weather": "mist"
+  },
+  "Gorge Rim / Edge": "GorgeEdge.png"
+}

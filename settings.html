@@ -1,0 +1,55 @@
+<div id="location_background_settings" class="location-background-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Location Background Manager</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <label class="checkbox_label" for="location_background_enabled">
+                <input id="location_background_enabled" type="checkbox">
+                <span>Enable automatic background changes</span>
+            </label>
+
+            <label class="checkbox_label" for="location_background_match_title">
+                <input id="location_background_match_title" type="checkbox">
+                <span>Match World Info Entry Title / Memo</span>
+            </label>
+
+            <label class="checkbox_label" for="location_background_match_keys">
+                <input id="location_background_match_keys" type="checkbox">
+                <span>Also match primary keys when title is empty or unmatched</span>
+            </label>
+
+            <label class="checkbox_label" for="location_background_show_toasts">
+                <input id="location_background_show_toasts" type="checkbox">
+                <span>Show a toast when a location is applied</span>
+            </label>
+
+            <div class="flex-container alignItemsCenter flexGap5 marginTop10">
+                <select id="location_background_test_location" class="text_pole flex1">
+                    <option value="">No locations loaded</option>
+                </select>
+                <button id="location_background_apply" class="menu_button" type="button">Apply selected</button>
+                <button id="location_background_reload" class="menu_button" type="button">Reload JSON</button>
+            </div>
+
+            <div class="marginTop10">
+                <div><b>Status:</b> <span id="location_background_status">Starting...</span></div>
+                <div><b>Loaded mappings:</b> <span id="location_background_count">0</span></div>
+                <div><b>Last match:</b> <span id="location_background_last">None yet</span></div>
+            </div>
+
+            <table class="responsiveTable wide100p marginTop10">
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Background</th>
+                        <th>Music</th>
+                        <th>Weather</th>
+                    </tr>
+                </thead>
+                <tbody id="location_background_locations_body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
