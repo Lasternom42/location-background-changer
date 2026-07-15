@@ -1,108 +1,38 @@
-# SillyTavern Location Background Manager
+# Location Background Manager
 
-Automatically changes the SillyTavern background when a matching Lorebook / World Info entry becomes active.
+This SillyTavern extension ties backgrounds, music, and weather to individual lorebook entries.
 
 ## How it works
 
-1. SillyTavern activates one or more World Info entries.
-2. The extension reads each entry's **Entry Title / Memo** field (`comment` internally).
-3. It looks for that title in `locations.json`.
-4. If a match has a `background`, it runs the same background flow as `/bg "filename.png"`.
+1. Select a lorebook in the extension panel.
+2. See all entries from that lorebook.
+3. Add a background, music, or weather value to any entry.
+4. When that entry becomes active, the extension applies the linked background and emits a change event for the extra fields.
 
-If the title is empty, the extension also checks the entry's primary keys as a fallback.
+## Installation
 
-## Install
+Copy the `location-background` folder into your third-party extensions directory and install it in SillyTavern.
 
-Copy the `location-background` folder into your SillyTavern extensions folder:
+The extension is designed for SillyTavern `1.18.x`.
 
-```text
-SillyTavern/data/<user-handle>/extensions/location-background
-```
+## In The Panel
 
-For local development or all-user installs, you can also place it here:
+- Pick a lorebook first.
+- Use the three buttons on each entry to add `Background`, `Music`, or `Weather`.
+- Use the small `x` buttons to remove a single mapping.
+- Use the trash button to remove all mappings for an entry.
+- Reload the lorebook list or the selected lorebook whenever you change things in SillyTavern.
 
-```text
-SillyTavern/public/scripts/extensions/third-party/location-background
-```
+## Runtime
 
-Restart or reload SillyTavern, then enable **Location Background Manager** in the extensions panel.
-
-## Background files
-
-Put your images in SillyTavern's normal background folder, or upload them from the Backgrounds panel:
-
-```text
-SillyTavern/public/backgrounds
-```
-
-The filenames in `locations.json` must match the background filenames.
-
-## locations.json
-
-Simple format:
-
-```json
-{
-  "West Tower": "West_tower.png",
-  "East Tower": "East_tower.png"
-}
-```
-
-Expandable format:
-
-```json
-{
-  "West Tower": {
-    "background": "West_tower.png",
-    "music": "westtower.mp3",
-    "weather": "fog"
-  }
-}
-```
-
-Only `background` is applied by this version. Extra fields such as `music` and `weather` are preserved and emitted through the browser event `location-background:changed`, so later versions or companion extensions can react to them.
-
-## Example
-
-If your active World Info entry has this title:
-
-```text
-West Tower
-```
-
-And `locations.json` contains:
-
-```json
-{
-  "West Tower": "West_tower.png"
-}
-```
-
-The extension applies:
-
-```stscript
-/bg "West_tower.png"
-```
+Only `background` is applied directly right now. `music` and `weather` are stored with the entry and exposed through the `location-background:changed` browser event so they can be wired up later without changing the structure again.
 
 ## Debug
 
-Open the browser console in SillyTavern and run:
+In the browser console:
 
 ```js
 locationBackgroundManager.reload()
+locationBackgroundManager.selectWorld("West Tower")
+locationBackgroundManager.getState()
 ```
-
-This reloads `locations.json` without restarting SillyTavern.
-
-## Settings panel
-
-After installation, open SillyTavern's **Extensions** panel and look for **Location Background Manager**.
-
-The panel lets you:
-
-- Enable or disable automatic background changes.
-- Choose whether to match World Info Entry Title / Memo.
-- Choose whether primary keys are used as a fallback.
-- Reload `locations.json` without restarting SillyTavern.
-- Apply a selected location manually for testing.
-- See all loaded location mappings.

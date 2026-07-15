@@ -10,45 +10,43 @@
                 <span>Enable automatic background changes</span>
             </label>
 
-            <label class="checkbox_label" for="location_background_match_title">
-                <input id="location_background_match_title" type="checkbox">
-                <span>Match World Info Entry Title / Memo</span>
-            </label>
-
-            <label class="checkbox_label" for="location_background_match_keys">
-                <input id="location_background_match_keys" type="checkbox">
-                <span>Also match primary keys when title is empty or unmatched</span>
-            </label>
-
             <label class="checkbox_label" for="location_background_show_toasts">
                 <input id="location_background_show_toasts" type="checkbox">
-                <span>Show a toast when a location is applied</span>
+                <span>Show toast messages</span>
             </label>
 
             <div class="flex-container alignItemsCenter flexGap5 marginTop10">
-                <select id="location_background_test_location" class="text_pole flex1">
-                    <option value="">No locations loaded</option>
+                <select id="location_background_world" class="text_pole flex1">
+                    <option value="">Select a lorebook</option>
                 </select>
-                <button id="location_background_apply" class="menu_button" type="button">Apply selected</button>
-                <button id="location_background_reload" class="menu_button" type="button">Reload JSON</button>
+                <button id="location_background_refresh_worlds" class="menu_button" type="button" title="Reload lorebook list">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <button id="location_background_reload_world" class="menu_button" type="button" title="Reload selected lorebook">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
             </div>
 
             <div class="marginTop10">
+                <div><b>Selected lorebook:</b> <span id="location_background_selected_world">None</span></div>
+                <div><b>Known lorebooks:</b> <span id="location_background_world_count">0</span></div>
+                <div><b>Entries loaded:</b> <span id="location_background_entry_count">0</span></div>
                 <div><b>Status:</b> <span id="location_background_status">Starting...</span></div>
-                <div><b>Loaded mappings:</b> <span id="location_background_count">0</span></div>
-                <div><b>Last match:</b> <span id="location_background_last">None yet</span></div>
+                <div><b>Last applied:</b> <span id="location_background_last">None yet</span></div>
             </div>
 
             <table class="responsiveTable wide100p marginTop10">
                 <thead>
                     <tr>
-                        <th>Location</th>
+                        <th>Entry</th>
+                        <th>Keys</th>
                         <th>Background</th>
                         <th>Music</th>
                         <th>Weather</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody id="location_background_locations_body"></tbody>
+                <tbody id="location_background_entries_body"></tbody>
             </table>
         </div>
     </div>

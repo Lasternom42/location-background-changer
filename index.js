@@ -1,27 +1,27 @@
 import { extension_settings, getContext } from '../../../extensions.js';
 import { background_settings } from '../../../backgrounds.js';
+import { getRequestHeaders } from '../../../script.js';
+import { updateWorldInfoList, world_names } from '../../../world-info.js';
 
 const MODULE_NAME = 'location-background';
 const MODULE_LABEL = 'Location Background Manager';
-const LOCATIONS_URL = new URL('./locations.json', import.meta.url);
 const SETTINGS_URL = new URL('./settings.html', import.meta.url);
 const LOCATION_CHANGED_EVENT = 'location-background:changed';
+
 const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
-    matchEntryTitle: true,
-    matchKeysFallback: true,
     showToasts: false,
+    selectedWorld: '',
+    books: {},
 });
 
 let initialized = false;
 let eventsRegistered = false;
 let settingsRendered = false;
-let locationsLoaded = false;
-let loadPromise = null;
-let locationsByName = new Map();
-let locationsByLowerName = new Map();
+let activeWorldName = '';
+let activeWorldData = null;
 let lastAppliedSignature = '';
-let lastLocationDetail = null;
+let lastAppliedDetail = null;
 let lastStatusMessage = 'Starting...';
 
 function getSillyTavernContext() {
@@ -33,13 +33,19 @@ function getSettings() {
         extension_settings[MODULE_NAME] = {};
     }
 
+    const settings = extension_settings[MODULE_NAME];
+
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
-        if (!(key in extension_settings[MODULE_NAME])) {
-            extension_settings[MODULE_NAME][key] = value;
+        if (!(key in settings)) {
+            settings[key] = structuredClone(value);
         }
     }
 
-    return extension_settings[MODULE_NAME];
+    if (!settings.books || typeof settings.books !== 'object' || Array.isArray(settings.books)) {
+        settings.books = {};
+    }
+
+    return settings;
 }
 
 function saveSettings() {
@@ -54,12 +60,108 @@ function warn(message, ...args) {
     console.warn(`[${MODULE_LABEL}] ${message}`, ...args);
 }
 
-function showWarning(message) {
-    if (globalThis.toastr?.warning) {
-        globalThis.toastr.warning(message, MODULE_LABEL);
-    } else {
-        warn(message);
+function showToast(kind, message) {
+    const toastr = globalThis.toastr;
+    if (!toastr) {
+        return;
     }
+
+    const method = toastr[kind];
+    if (typeof method === 'function') {
+        method.call(toastr, message, MODULE_LABEL);
+    }
+}
+
+function normalizeName(value) {
+    return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+}
+
+function getBookStore(worldName, createIfMissing = false) {
+    const settings = getSettings();
+    const normalizedWorldName = normalizeName(worldName);
+
+    if (!normalizedWorldName) {
+        return null;
+    }
+
+    if (!settings.books[normalizedWorldName] && createIfMissing) {
+        settings.books[normalizedWorldName] = { entries: {} };
+    }
+
+    const book = settings.books[normalizedWorldName];
+    if (!book || typeof book !== 'object' || Array.isArray(book)) {
+        return null;
+    }
+
+    if (!book.entries || typeof book.entries !== 'object' || Array.isArray(book.entries)) {
+        book.entries = {};
+    }
+
+    return book;
+}
+
+function getEntryLabel(entry) {
+    const label = normalizeName(entry?.comment || entry?.title || entry?.name || entry?.memo || '');
+    if (label) {
+        return label;
+    }
+
+    const keys = Array.isArray(entry?.key) ? entry.key.filter(Boolean).map(normalizeName) : [];
+    return keys.length ? keys.join(', ') : `UID ${entry?.uid ?? '?'}`;
+}
+
+function getEntryKeysText(entry) {
+    const keys = Array.isArray(entry?.key) ? entry.key.filter(Boolean).map(normalizeName) : [];
+    return keys.length ? keys.join(', ') : '-';
+}
+
+function getEntryMapping(book, uid) {
+    return book?.entries?.[String(uid)] ?? null;
+}
+
+function setEntryMapping(worldName, entry, type, value) {
+    const book = getBookStore(worldName, true);
+    if (!book || !entry) {
+        return;
+    }
+
+    const uid = String(entry.uid);
+    if (!book.entries[uid]) {
+        book.entries[uid] = {
+            label: getEntryLabel(entry),
+            background: '',
+            music: '',
+            weather: '',
+        };
+    }
+
+    book.entries[uid].label = getEntryLabel(entry);
+    book.entries[uid][type] = normalizeName(value);
+    saveSettings();
+    refreshSettingsUI();
+}
+
+function removeEntryMapping(worldName, uid, type = null) {
+    const book = getBookStore(worldName, false);
+    if (!book || !book.entries?.[String(uid)]) {
+        return;
+    }
+
+    if (type) {
+        delete book.entries[String(uid)][type];
+    } else {
+        delete book.entries[String(uid)];
+    }
+
+    if (type && book.entries[String(uid)]) {
+        const mapping = book.entries[String(uid)];
+        if (!mapping.background && !mapping.music && !mapping.weather) {
+            delete book.entries[String(uid)];
+        }
+    }
+
+    saveSettings();
+    refreshSettingsUI();
 }
 
 function setStatus(message, isError = false) {
@@ -69,66 +171,160 @@ function setStatus(message, isError = false) {
     statusElement.toggleClass('redWarning', isError);
 }
 
-function updateLocationSelect() {
-    const select = $('#location_background_test_location');
+function getSelectedWorldName() {
+    const selectValue = normalizeName($('#location_background_world').val());
+    if (selectValue) {
+        return selectValue;
+    }
+
+    const settings = getSettings();
+    return normalizeName(settings.selectedWorld);
+}
+
+function renderWorldOptions() {
+    const select = $('#location_background_world');
     if (!select.length) {
         return;
     }
 
-    const selectedValue = String(select.val() || '');
+    const settings = getSettings();
+    const preferredWorld = normalizeName(settings.selectedWorld);
+    const currentSelection = normalizeName(select.val());
+    const selectedValue = preferredWorld || currentSelection || '';
+
     select.empty();
 
-    if (!locationsByName.size) {
-        select.append($('<option>').val('').text('No locations loaded'));
+    if (!Array.isArray(world_names) || world_names.length === 0) {
+        select.append($('<option>').val('').text('No lorebooks available'));
         select.prop('disabled', true);
         return;
     }
 
     select.prop('disabled', false);
+    select.append($('<option>').val('').text('Select a lorebook'));
 
-    for (const [locationName, record] of locationsByName) {
-        const background = record.config.background || 'no background';
-        select.append($('<option>').val(locationName).text(`${locationName} -> ${background}`));
+    for (const worldName of world_names) {
+        select.append($('<option>').val(worldName).text(worldName));
     }
 
-    if (selectedValue && locationsByName.has(selectedValue)) {
+    if (selectedValue && world_names.includes(selectedValue)) {
         select.val(selectedValue);
+    } else if (!selectedValue && world_names.length > 0) {
+        const firstWorld = world_names[0];
+        select.val(firstWorld);
+        settings.selectedWorld = firstWorld;
+        saveSettings();
     }
 }
 
-function updateLocationsTable() {
-    const body = $('#location_background_locations_body');
+function formatMappingBadge(label, value, type) {
+    const badge = $('<div>').addClass('location-background-badge');
+    badge.append($('<span>').addClass('location-background-badge-label').text(label));
+    badge.append($('<span>').addClass('location-background-badge-value').text(value));
+    badge.append($('<button>')
+        .addClass('menu_button menu_button_small location-background-remove')
+        .attr('type', 'button')
+        .attr('data-type', type)
+        .attr('title', `Remove ${label.toLowerCase()}`)
+        .append($('<i>').addClass('fa-solid fa-xmark')));
+    return badge;
+}
+
+function renderEntriesTable() {
+    const body = $('#location_background_entries_body');
     if (!body.length) {
         return;
     }
 
     body.empty();
 
-    for (const [locationName, record] of locationsByName) {
-        const row = $('<tr>');
-        row.append($('<td>').text(locationName));
-        row.append($('<td>').text(record.config.background || '-'));
-        row.append($('<td>').text(record.config.music || '-'));
-        row.append($('<td>').text(record.config.weather || '-'));
+    if (!activeWorldData?.entries) {
+        body.append($('<tr>').append($('<td colspan="6">').text('No lorebook loaded')));
+        return;
+    }
+
+    const entries = Object.values(activeWorldData.entries).sort((left, right) => {
+        const leftIndex = Number(left.displayIndex ?? left.uid ?? 0);
+        const rightIndex = Number(right.displayIndex ?? right.uid ?? 0);
+        return leftIndex - rightIndex;
+    });
+
+    const book = getBookStore(activeWorldName, false);
+
+    if (entries.length === 0) {
+        body.append($('<tr>').append($('<td colspan="6">').text('This lorebook has no entries yet')));
+        return;
+    }
+
+    for (const entry of entries) {
+        const uid = String(entry.uid);
+        const mapping = getEntryMapping(book, uid);
+        const row = $('<tr>').attr('data-uid', uid);
+
+        const labelCell = $('<td>');
+        labelCell.append($('<div>').addClass('location-background-entry-title').text(getEntryLabel(entry)));
+        labelCell.append($('<div>').addClass('location-background-entry-meta').text(`UID ${uid}`));
+
+        const keysCell = $('<td>').text(getEntryKeysText(entry));
+        const backgroundCell = $('<td>').addClass('location-background-mapping-cell');
+        const musicCell = $('<td>').addClass('location-background-mapping-cell');
+        const weatherCell = $('<td>').addClass('location-background-mapping-cell');
+        const actionsCell = $('<td>').addClass('location-background-actions');
+
+        if (mapping?.background) {
+            backgroundCell.append(formatMappingBadge('Background', mapping.background, 'background'));
+        } else {
+            backgroundCell.text('-');
+        }
+
+        if (mapping?.music) {
+            musicCell.append(formatMappingBadge('Music', mapping.music, 'music'));
+        } else {
+            musicCell.text('-');
+        }
+
+        if (mapping?.weather) {
+            weatherCell.append(formatMappingBadge('Weather', mapping.weather, 'weather'));
+        } else {
+            weatherCell.text('-');
+        }
+
+        actionsCell.append(`
+            <button class="menu_button menu_button_small location-background-add" type="button" data-type="background" title="Add background">
+                <i class="fa-solid fa-image"></i>
+            </button>
+            <button class="menu_button menu_button_small location-background-add" type="button" data-type="music" title="Add music">
+                <i class="fa-solid fa-music"></i>
+            </button>
+            <button class="menu_button menu_button_small location-background-add" type="button" data-type="weather" title="Add weather">
+                <i class="fa-solid fa-cloud-sun"></i>
+            </button>
+            <button class="menu_button menu_button_small location-background-remove-entry" type="button" title="Remove all mappings">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `);
+
+        row.append(labelCell, keysCell, backgroundCell, musicCell, weatherCell, actionsCell);
         body.append(row);
     }
 }
 
 function refreshSettingsUI() {
     const settings = getSettings();
+    const selectedWorld = getSelectedWorldName();
 
     $('#location_background_enabled').prop('checked', !!settings.enabled);
-    $('#location_background_match_title').prop('checked', !!settings.matchEntryTitle);
-    $('#location_background_match_keys').prop('checked', !!settings.matchKeysFallback);
     $('#location_background_show_toasts').prop('checked', !!settings.showToasts);
-    $('#location_background_count').text(String(locationsByName.size));
-    $('#location_background_last').text(lastLocationDetail
-        ? `${lastLocationDetail.location} -> ${lastLocationDetail.background || 'no background'}`
-        : 'None yet');
+    $('#location_background_world').val(selectedWorld);
+    $('#location_background_world_count').text(String(Array.isArray(world_names) ? world_names.length : 0));
+    $('#location_background_selected_world').text(selectedWorld || 'None');
+    $('#location_background_entry_count').text(String(Object.keys(activeWorldData?.entries || {}).length));
     $('#location_background_status').text(lastStatusMessage);
+    $('#location_background_last').text(lastAppliedDetail
+        ? `${lastAppliedDetail.entryLabel} -> ${lastAppliedDetail.background || 'no background'}`
+        : 'None yet');
 
-    updateLocationSelect();
-    updateLocationsTable();
+    renderEntriesTable();
 }
 
 async function renderSettingsPanel() {
@@ -140,7 +336,7 @@ async function renderSettingsPanel() {
 
     const container = $('#extensions_settings');
     if (!container.length) {
-        warn('Could not find #extensions_settings. Settings UI will be retried later.');
+        warn('Could not find #extensions_settings.');
         return;
     }
 
@@ -155,51 +351,116 @@ async function renderSettingsPanel() {
     refreshSettingsUI();
 }
 
-function getLocationByName(locationName) {
-    const normalizedName = normalizeName(locationName);
-    return locationsByName.get(normalizedName)
-        ?? locationsByLowerName.get(normalizedName.toLocaleLowerCase())
-        ?? null;
-}
-
-async function reloadLocationsFromUi() {
-    setStatus('Reloading locations.json...');
-
-    try {
-        await loadLocations(true);
-        setStatus(`Loaded ${locationsByName.size} location mapping(s).`);
-        globalThis.toastr?.success?.('locations.json reloaded.', MODULE_LABEL);
-    } catch (error) {
-        setStatus(`Failed to load locations.json: ${error.message}`, true);
+async function fetchWorldBook(worldName) {
+    if (!worldName) {
+        return null;
     }
+
+    const response = await fetch('/api/worldinfo/get', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ name: worldName }),
+        cache: 'no-cache',
+    });
+
+    if (!response.ok) {
+        throw new Error(`Could not load lorebook "${worldName}": ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
 }
 
-async function applySelectedLocationFromUi() {
-    const locationName = String($('#location_background_test_location').val() || '');
-    const record = getLocationByName(locationName);
+async function loadSelectedWorld(worldName = getSelectedWorldName()) {
+    const normalizedWorld = normalizeName(worldName);
+    const settings = getSettings();
 
-    if (!record) {
-        showWarning('Select a valid location first.');
+    if (!normalizedWorld) {
+        activeWorldName = '';
+        activeWorldData = null;
+        refreshSettingsUI();
         return;
     }
 
-    await applyLocation({ ...record, entry: null, matchedName: locationName }, { force: true });
+    activeWorldName = normalizedWorld;
+    settings.selectedWorld = normalizedWorld;
+    saveSettings();
+
+    setStatus(`Loading lorebook "${normalizedWorld}"...`);
+    refreshSettingsUI();
+
+    try {
+        activeWorldData = await fetchWorldBook(normalizedWorld);
+        setStatus(`Loaded lorebook "${normalizedWorld}" with ${Object.keys(activeWorldData?.entries || {}).length} entries.`);
+        refreshSettingsUI();
+    } catch (error) {
+        activeWorldData = null;
+        setStatus(error.message, true);
+        showToast('warning', error.message);
+        refreshSettingsUI();
+    }
+}
+
+function promptForValue(type, entryLabel, currentValue = '') {
+    const current = currentValue ? `\nCurrent: ${currentValue}` : '';
+    const value = window.prompt(`Set ${type} for "${entryLabel}"${current}`, currentValue || '');
+    return normalizeName(value);
+}
+
+function onAddMappingClick(event) {
+    const button = event.currentTarget;
+    const row = button.closest('tr');
+    const uid = row?.getAttribute('data-uid');
+    const type = button.dataset.type;
+    const entry = activeWorldData?.entries?.[uid];
+
+    if (!entry || !type) {
+        return;
+    }
+
+    const book = getBookStore(activeWorldName, true);
+    const currentValue = book.entries?.[uid]?.[type] || '';
+    const value = promptForValue(type, getEntryLabel(entry), currentValue);
+    if (!value) {
+        return;
+    }
+
+    setEntryMapping(activeWorldName, entry, type, value);
+    setStatus(`Saved ${type} for "${getEntryLabel(entry)}".`);
+    if (getSettings().showToasts) {
+        showToast('info', `${getEntryLabel(entry)}: ${type} updated`);
+    }
+}
+
+function onRemoveMappingClick(event) {
+    const button = event.currentTarget;
+    const row = button.closest('tr');
+    const uid = row?.getAttribute('data-uid');
+    const type = button.dataset.type;
+
+    if (!uid || !type) {
+        return;
+    }
+
+    removeEntryMapping(activeWorldName, uid, type);
+    setStatus(`Removed ${type} from entry UID ${uid}.`);
+}
+
+function onRemoveEntryClick(event) {
+    const button = event.currentTarget;
+    const row = button.closest('tr');
+    const uid = row?.getAttribute('data-uid');
+
+    if (!uid) {
+        return;
+    }
+
+    removeEntryMapping(activeWorldName, uid, null);
+    setStatus(`Removed entry UID ${uid} from the manager.`);
 }
 
 function bindSettingsEvents() {
     $('#location_background_enabled').on('change', function () {
         getSettings().enabled = !!$(this).prop('checked');
-        saveSettings();
-        refreshSettingsUI();
-    });
-
-    $('#location_background_match_title').on('change', function () {
-        getSettings().matchEntryTitle = !!$(this).prop('checked');
-        saveSettings();
-    });
-
-    $('#location_background_match_keys').on('change', function () {
-        getSettings().matchKeysFallback = !!$(this).prop('checked');
         saveSettings();
     });
 
@@ -208,281 +469,151 @@ function bindSettingsEvents() {
         saveSettings();
     });
 
-    $('#location_background_reload').on('click', reloadLocationsFromUi);
-    $('#location_background_apply').on('click', applySelectedLocationFromUi);
+    $('#location_background_world').on('change', async function () {
+        const worldName = normalizeName($(this).val());
+        await loadSelectedWorld(worldName);
+    });
+
+    $('#location_background_refresh_worlds').on('click', async () => {
+        await refreshWorldNames();
+    });
+
+    $('#location_background_reload_world').on('click', async () => {
+        await loadSelectedWorld();
+    });
+
+    $('#location_background_entries_body').on('click', '.location-background-add', onAddMappingClick);
+    $('#location_background_entries_body').on('click', '.location-background-remove', onRemoveMappingClick);
+    $('#location_background_entries_body').on('click', '.location-background-remove-entry', onRemoveEntryClick);
 }
 
-function normalizeName(value) {
-    return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ');
-}
+async function refreshWorldNames() {
+    if (typeof updateWorldInfoList === 'function') {
+        await updateWorldInfoList();
+    }
 
-function toArray(value) {
-    if (Array.isArray(value)) {
-        return value;
-    }
-    if (value === undefined || value === null || value === '') {
-        return [];
-    }
-    return [value];
+    renderWorldOptions();
+    await loadSelectedWorld();
 }
 
 function readEntryNames(entry) {
-    const settings = getSettings();
-    const names = [];
-
-    if (settings.matchEntryTitle) {
-        names.push(entry?.comment, entry?.title, entry?.name, entry?.memo);
-    }
-
-    if (settings.matchKeysFallback) {
-        names.push(...toArray(entry?.key), ...toArray(entry?.keys));
-    }
+    const names = [
+        entry?.comment,
+        entry?.title,
+        entry?.name,
+        entry?.memo,
+        ...(Array.isArray(entry?.key) ? entry.key : []),
+        ...(Array.isArray(entry?.keys) ? entry.keys : []),
+    ];
 
     return [...new Set(names.map(normalizeName).filter(Boolean))];
 }
 
-function parseLocationConfig(locationName, rawConfig) {
-    if (typeof rawConfig === 'string') {
-        return { background: normalizeName(rawConfig) };
-    }
-
-    if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
-        warn(`Ignored "${locationName}" because its value is not a string or object.`);
-        return null;
-    }
-
-    const config = { ...rawConfig };
-    if (config.background !== undefined) {
-        config.background = normalizeName(config.background);
-    }
-
-    if (!config.background) {
-        warn(`"${locationName}" has no background field. It can still emit a custom event, but will not change the background.`);
-    }
-
-    return config;
+function getCurrentWorldMappings() {
+    const settings = getSettings();
+    return settings.books[activeWorldName]?.entries ?? {};
 }
 
-async function loadLocations(force = false) {
-    if (loadPromise && !force) {
-        return loadPromise;
-    }
-
-    loadPromise = (async () => {
-        const url = new URL(LOCATIONS_URL.href);
-        url.searchParams.set('_', Date.now().toString());
-
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error(`Could not load ${LOCATIONS_URL.pathname}: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        if (!data || typeof data !== 'object' || Array.isArray(data)) {
-            throw new Error('locations.json must be a JSON object.');
-        }
-
-        const nextByName = new Map();
-        const nextByLowerName = new Map();
-
-        for (const [rawLocationName, rawConfig] of Object.entries(data)) {
-            const locationName = normalizeName(rawLocationName);
-            const config = parseLocationConfig(locationName, rawConfig);
-            if (!locationName || !config) {
-                continue;
-            }
-
-            const record = { location: locationName, config };
-            nextByName.set(locationName, record);
-            nextByLowerName.set(locationName.toLocaleLowerCase(), record);
-        }
-
-        locationsByName = nextByName;
-        locationsByLowerName = nextByLowerName;
-        locationsLoaded = true;
-
-        setStatus(`Loaded ${locationsByName.size} location mapping(s).`);
-        refreshSettingsUI();
-        log(`Loaded ${locationsByName.size} location mapping(s).`);
-        return locationsByName;
-    })().catch((error) => {
-        locationsLoaded = false;
-        setStatus(`Failed to load locations.json: ${error.message}`, true);
-        refreshSettingsUI();
-        showWarning(`Failed to load locations.json: ${error.message}`);
-        throw error;
-    }).finally(() => {
-        loadPromise = null;
-    });
-
-    return loadPromise;
-}
-
-function findLocationForEntry(entry) {
-    for (const entryName of readEntryNames(entry)) {
-        const exactMatch = locationsByName.get(entryName);
-        if (exactMatch) {
-            return { ...exactMatch, entry, matchedName: entryName };
-        }
-
-        const lowerMatch = locationsByLowerName.get(entryName.toLocaleLowerCase());
-        if (lowerMatch) {
-            return { ...lowerMatch, entry, matchedName: entryName };
-        }
-    }
-
-    return null;
-}
-
-function quoteSlashArgument(value) {
-    return JSON.stringify(String(value));
-}
-
-async function runBackgroundSlashCommand(background) {
+function applyBackground(background) {
     const context = getSillyTavernContext();
-    const command = `/bg ${quoteSlashArgument(background)}`;
+    const command = `/bg ${JSON.stringify(String(background))}`;
 
-    if (context?.executeSlashCommandsWithOptions) {
-        const result = await context.executeSlashCommandsWithOptions(command, {
+    if (typeof context?.executeSlashCommandsWithOptions === 'function') {
+        return context.executeSlashCommandsWithOptions(command, {
             handleParserErrors: false,
             handleExecutionErrors: true,
             source: MODULE_NAME,
+        }).then((result) => {
+            if (result?.isError) {
+                throw new Error(result.errorMessage || `Slash command failed: ${command}`);
+            }
+            return true;
         });
-
-        if (result?.isError) {
-            throw new Error(result.errorMessage || `Slash command failed: ${command}`);
-        }
-        return true;
     }
 
     const bgCommand = context?.SlashCommandParser?.commands?.bg;
     if (bgCommand?.callback) {
-        await bgCommand.callback({}, background);
+        return Promise.resolve(bgCommand.callback({}, background)).then(() => true);
+    }
+
+    return Promise.resolve(false);
+}
+
+function applyBackgroundFallback(background) {
+    const element = Array.from(document.querySelectorAll('.bg_example')).find((node) => normalizeName(node.getAttribute('bgfile')) === normalizeName(background));
+    if (element instanceof HTMLElement) {
+        element.click();
+        return true;
+    }
+
+    const backgroundElement = document.getElementById('bg1');
+    if (backgroundElement) {
+        backgroundElement.style.backgroundImage = `url("backgrounds/${encodeURIComponent(background)}")`;
+        background_settings.name = background;
+        background_settings.url = `url("backgrounds/${encodeURIComponent(background)}")`;
+        getSillyTavernContext()?.saveSettingsDebounced?.();
         return true;
     }
 
     return false;
 }
 
-function findBackgroundElement(background) {
-    const normalizedBackground = normalizeName(background);
-    const elements = Array.from(document.querySelectorAll('.bg_example'));
-
-    return elements.find((element) => normalizeName(element.getAttribute('bgfile')) === normalizedBackground)
-        ?? elements.find((element) => normalizeName(element.getAttribute('bgfile')).toLocaleLowerCase() === normalizedBackground.toLocaleLowerCase());
-}
-
-function clickBackgroundElement(background) {
-    const element = findBackgroundElement(background);
-    if (!(element instanceof HTMLElement)) {
-        return false;
-    }
-
-    element.click();
-    return true;
-}
-
-async function backgroundFileExists(background) {
-    try {
-        const response = await fetch(`backgrounds/${encodeURIComponent(background)}`, {
-            method: 'HEAD',
-            cache: 'no-store',
-        });
-        return response.ok;
-    } catch {
-        return false;
-    }
-}
-
-async function setBackgroundDirectly(background) {
-    if (!await backgroundFileExists(background)) {
-        showWarning(`No background found with name "${background}".`);
-        return false;
-    }
-
-    const url = `url("backgrounds/${encodeURIComponent(background)}")`;
-    const backgroundElement = document.getElementById('bg1');
-
-    if (backgroundElement) {
-        backgroundElement.style.backgroundImage = url;
-    }
-
-    background_settings.name = background;
-    background_settings.url = url;
-    getSillyTavernContext()?.saveSettingsDebounced?.();
-
-    return true;
-}
-
-async function applyBackground(background) {
-    if (!background) {
-        return false;
-    }
-
-    try {
-        if (await runBackgroundSlashCommand(background)) {
-            return true;
-        }
-    } catch (error) {
-        warn(`Slash command /bg failed for "${background}". Trying fallback.`, error);
-    }
-
-    if (clickBackgroundElement(background)) {
-        return true;
-    }
-
-    return setBackgroundDirectly(background);
-}
-
-function emitLocationChanged(match) {
-    const detail = {
-        location: match.location,
-        matchedName: match.matchedName,
-        entry: match.entry,
-        config: { ...match.config },
-        background: match.config.background || null,
-        music: match.config.music || null,
-        weather: match.config.weather || null,
-    };
-
+function emitLocationChanged(detail) {
     window.dispatchEvent(new CustomEvent(LOCATION_CHANGED_EVENT, { detail }));
-    return detail;
 }
 
-async function applyLocation(match, { force = false } = {}) {
+async function applyEntryMapping(entry, mapping) {
     const signature = JSON.stringify({
-        location: match.location,
-        background: match.config.background || '',
-        music: match.config.music || '',
-        weather: match.config.weather || '',
+        world: activeWorldName,
+        uid: entry.uid,
+        background: mapping.background || '',
+        music: mapping.music || '',
+        weather: mapping.weather || '',
     });
 
-    if (!force && signature === lastAppliedSignature) {
+    if (signature === lastAppliedSignature) {
         return;
     }
 
-    if (match.config.background) {
-        const applied = await applyBackground(match.config.background);
-        if (!applied) {
-            setStatus(`Could not apply background "${match.config.background}".`, true);
-            return;
+    let applied = true;
+    if (mapping.background) {
+        try {
+            applied = await applyBackground(mapping.background);
+        } catch (error) {
+            warn(`Slash command /bg failed for "${mapping.background}". Trying fallback.`, error);
+            applied = applyBackgroundFallback(mapping.background);
         }
     }
 
-    lastAppliedSignature = signature;
-    lastLocationDetail = emitLocationChanged(match);
-    setStatus(`Active location: ${match.location}`);
-    refreshSettingsUI();
-
-    if (getSettings().showToasts) {
-        globalThis.toastr?.info?.(`${match.location} -> ${match.config.background || 'no background'}`, MODULE_LABEL);
+    if (!applied) {
+        setStatus(`Could not apply background "${mapping.background}".`, true);
+        return;
     }
 
-    log(`Activated "${match.location}"`, match.config);
+    lastAppliedSignature = signature;
+    const detail = {
+        world: activeWorldName,
+        entryUid: String(entry.uid),
+        entryLabel: getEntryLabel(entry),
+        background: mapping.background || null,
+        music: mapping.music || null,
+        weather: mapping.weather || null,
+    };
+
+    lastAppliedDetail = detail;
+    emitLocationChanged(detail);
+    setStatus(`Applied "${detail.entryLabel}" from "${activeWorldName}".`);
+    $('#location_background_last').text(`${detail.entryLabel} -> ${detail.background || 'no background'}`);
+
+    if (getSettings().showToasts) {
+        showToast('info', `${detail.entryLabel} applied`);
+    }
+
+    log('Applied mapping', detail);
 }
 
 async function onWorldInfoActivated(entries) {
-    if (!getSettings().enabled) {
+    if (!getSettings().enabled || !activeWorldName) {
         return;
     }
 
@@ -490,40 +621,36 @@ async function onWorldInfoActivated(entries) {
         return;
     }
 
-    try {
-        if (!locationsLoaded) {
-            await loadLocations();
-        }
-    } catch {
-        return;
-    }
-
-    let selectedMatch = null;
-
+    const mappings = getCurrentWorldMappings();
     for (const entry of entries) {
-        const match = findLocationForEntry(entry);
-        if (match) {
-            selectedMatch = match;
+        const mapping = mappings[String(entry?.uid)];
+        if (mapping && (mapping.background || mapping.music || mapping.weather)) {
+            await applyEntryMapping(entry, mapping);
+            return;
         }
-    }
-
-    if (selectedMatch) {
-        await applyLocation(selectedMatch);
     }
 }
 
 function registerDebugApi() {
     globalThis.locationBackgroundManager = {
-        reload: () => loadLocations(true),
-        getLocations: () => Object.fromEntries([...locationsByName].map(([name, record]) => [name, record.config])),
-        getSettings,
-        apply: async (locationName) => {
-            const record = getLocationByName(locationName);
-            if (!record) {
-                throw new Error(`Unknown location: ${locationName}`);
-            }
-            await applyLocation({ ...record, entry: null, matchedName: normalizeName(locationName) }, { force: true });
+        reload: async () => {
+            await refreshWorldNames();
         },
+        selectWorld: async (worldName) => {
+            $('#location_background_world').val(worldName).trigger('change');
+        },
+        setMapping: (worldName, uid, type, value) => {
+            const book = getBookStore(worldName, true);
+            const entry = activeWorldData?.entries?.[String(uid)] ?? { uid };
+            if (!book.entries[String(uid)]) {
+                book.entries[String(uid)] = { label: `UID ${uid}`, background: '', music: '', weather: '' };
+            }
+            book.entries[String(uid)][type] = normalizeName(value);
+            saveSettings();
+            refreshSettingsUI();
+        },
+        removeMapping: (worldName, uid, type = null) => removeEntryMapping(worldName, uid, type),
+        getState: () => structuredClone(getSettings()),
         eventName: LOCATION_CHANGED_EVENT,
     };
 }
@@ -534,49 +661,59 @@ async function initialize() {
         return;
     }
 
+    initialized = true;
     getSettings();
     registerDebugApi();
 
     try {
         await renderSettingsPanel();
     } catch (error) {
-        warn(`Could not render settings UI: ${error.message}`);
+        warn(`Could not render settings panel: ${error.message}`);
     }
 
     const context = getSillyTavernContext();
     const eventSource = context?.eventSource;
     const eventTypes = context?.eventTypes ?? context?.event_types;
 
-    if (eventsRegistered) {
-        initialized = true;
-        return;
+    if (eventSource && eventTypes?.WORLD_INFO_ACTIVATED && !eventsRegistered) {
+        eventsRegistered = true;
+        eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
+        if (eventTypes.WORLDINFO_UPDATED) {
+            eventSource.on(eventTypes.WORLDINFO_UPDATED, async () => {
+                await refreshWorldNames();
+            });
+        }
+        if (eventTypes.CHAT_CHANGED) {
+            eventSource.on(eventTypes.CHAT_CHANGED, async () => {
+                const settings = getSettings();
+                if (!settings.selectedWorld && world_names.length) {
+                    settings.selectedWorld = world_names[0];
+                    saveSettings();
+                }
+                renderWorldOptions();
+            });
+        }
     }
-
-    if (!eventSource || !eventTypes?.WORLD_INFO_ACTIVATED) {
-        setStatus('SillyTavern World Info events are not available.', true);
-        showWarning('SillyTavern World Info events are not available.');
-        return;
-    }
-
-    initialized = true;
-    eventsRegistered = true;
-    eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
 
     try {
-        await loadLocations();
+        if (typeof updateWorldInfoList === 'function') {
+            await updateWorldInfoList();
+        }
     } catch {
-        warn('Waiting for a valid locations.json before applying locations.');
+        // Ignore - the dropdown can still populate from already loaded data.
     }
 
-    log('Ready.');
+    renderWorldOptions();
+    await loadSelectedWorld(getSelectedWorldName());
+    setStatus(`Ready with ${Object.keys(getSettings().books || {}).length} lorebook(s) configured.`);
 }
 
 jQuery(() => {
+    initialize();
+
     const context = getSillyTavernContext();
     const eventSource = context?.eventSource;
     const eventTypes = context?.eventTypes ?? context?.event_types;
-
-    initialize();
 
     if (eventSource && eventTypes?.APP_READY) {
         eventSource.on(eventTypes.APP_READY, initialize);
