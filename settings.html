@@ -60,6 +60,13 @@
             cursor: not-allowed;
         }
 
+        #location_background_settings .location-background-prompt-text:disabled,
+        #location_background_settings .location-background-prompt-control:disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
         #location_background_settings .location-background-number {
             width: 5em;
         }
@@ -84,6 +91,12 @@
             opacity: 0.55;
             filter: grayscale(1);
             cursor: not-allowed;
+        }
+
+        #location_background_settings .location-background-disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            pointer-events: none;
         }
     </style>
     <div class="inline-drawer">
@@ -165,9 +178,10 @@
                     <span>Use prompt injector</span>
                 </label>
 
+                <div id="location_background_prompt_controls">
                 <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                     <label for="location_background_prompt_depth">Prompt depth</label>
-                    <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
+                    <input id="location_background_prompt_depth" class="text_pole location-background-number location-background-prompt-control" type="number" min="0" max="10" step="1">
                 </div>
                 <small>Controls where SillyTavern places this extension prompt in the final prompt stack.</small>
 
@@ -180,21 +194,21 @@
 
                 <div class="location-background-field">
                     <label class="checkbox_label" for="location_background_include_connected">
-                        <input id="location_background_include_connected" type="checkbox">
+                        <input id="location_background_include_connected" class="location-background-prompt-control" type="checkbox">
                         <span>Include connected locations</span>
                     </label>
+                    <small>Limits how many generated connected-location choices are injected into the prompt.</small>
                     <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                         <label for="location_background_max_locations">Max locations</label>
-                        <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
+                        <input id="location_background_max_locations" class="text_pole location-background-number location-background-prompt-control" type="number" min="1" max="50" step="1">
                     </div>
-                    <small>Limits how many generated connected-location choices are injected into the prompt.</small>
                     <small>Lorebook entry format example: Connected locations: West Tower Forest, West Tower Observation Deck</small>
                     <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
                 <div class="location-background-field">
                     <label class="checkbox_label" for="location_background_include_aliases">
-                        <input id="location_background_include_aliases" type="checkbox">
+                        <input id="location_background_include_aliases" class="location-background-prompt-control" type="checkbox">
                         <span>Include aliases</span>
                     </label>
                     <small>Use aliases to convert scene wording to the exact location node name.</small>
@@ -204,7 +218,7 @@
 
                 <div class="location-background-field">
                     <label class="checkbox_label" for="location_background_allow_multihop">
-                        <input id="location_background_allow_multihop" type="checkbox">
+                        <input id="location_background_allow_multihop" class="location-background-prompt-control" type="checkbox">
                         <span>Allow multi-hop location changes</span>
                     </label>
                     <textarea id="location_background_multihop_block" class="text_pole wide100p location-background-block-text"></textarea>
@@ -213,6 +227,7 @@
                 <div id="location_background_prompt_preview_block" class="marginTop10">
                     <h4>Prompt Preview</h4>
                     <textarea id="location_background_prompt_preview" class="text_pole wide100p location-background-prompt-preview" readonly></textarea>
+                </div>
                 </div>
             </div>
         </div>

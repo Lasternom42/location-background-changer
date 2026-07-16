@@ -46,6 +46,7 @@ Settings:
 - `Prompt Preview`: Visible when `Debug` is enabled and shows the final injected text.
 
 Disabled prompt options grey out their text block but keep the custom text saved.
+When `Use prompt injector` is off, all prompt insert controls are disabled.
 
 Default base prompt:
 
@@ -57,7 +58,6 @@ Location: Exact Location Node Name
 Choose exactly one existing location name from the locations above.
 If the scene changed, output the new exact node name.
 If not, repeat the same current location.
-Use aliases to convert scene wording to the exact location node name.
 If uncertain, keep the previous exact location.
 ```
 
@@ -71,7 +71,6 @@ Location: Exact Location Node Name
 Choose exactly one existing location name from the locations above.
 If the scene changed, output the new exact node name.
 If not, repeat the same current location.
-Use aliases to convert scene wording to the exact location node name.
 If uncertain, keep the previous exact location.
 
 Current scene context:

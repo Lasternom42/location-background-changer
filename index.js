@@ -20,7 +20,7 @@ const LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT = [
     'Location: Exact Location Node Name',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
-const DEFAULT_LOCATION_PROMPT = [
+const LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE = [
     'Choose the current location from the selected lorebook location entries only.',
     'Never invent new location names.',
     'End every narrator reply with:',
@@ -29,6 +29,16 @@ const DEFAULT_LOCATION_PROMPT = [
     'If the scene changed, output the new exact node name.',
     'If not, repeat the same current location.',
     'Use aliases to convert scene wording to the exact location node name.',
+    'If uncertain, keep the previous exact location.',
+].join('\n');
+const DEFAULT_LOCATION_PROMPT = [
+    'Choose the current location from the selected lorebook location entries only.',
+    'Never invent new location names.',
+    'End every narrator reply with:',
+    'Location: Exact Location Node Name',
+    'Choose exactly one existing location name from the locations above.',
+    'If the scene changed, output the new exact node name.',
+    'If not, repeat the same current location.',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
 const DEFAULT_CURRENT_LOCATION_BLOCK = [
@@ -60,7 +70,12 @@ const LEGACY_ALIASES_BLOCK = [
     '- outside the west tower',
     '- tower approach',
 ].join('\n');
+const LEGACY_MINIMAL_ALIASES_BLOCK = [
+    'Aliases:',
+    '{{aliases}}',
+].join('\n');
 const DEFAULT_ALIASES_BLOCK = [
+    'Use aliases to convert scene wording to the exact location node name.',
     'Aliases:',
     '{{aliases}}',
 ].join('\n');
@@ -128,7 +143,7 @@ function getSettings() {
         settings.books = {};
     }
 
-    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT].includes(settings.locationPrompt)) {
+    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE].includes(settings.locationPrompt)) {
         settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
     }
 
@@ -136,7 +151,7 @@ function getSettings() {
         settings.connectedLocationsBlock = DEFAULT_CONNECTED_LOCATIONS_BLOCK;
     }
 
-    if (settings.aliasesBlock === LEGACY_ALIASES_BLOCK) {
+    if ([LEGACY_ALIASES_BLOCK, LEGACY_MINIMAL_ALIASES_BLOCK].includes(settings.aliasesBlock)) {
         settings.aliasesBlock = DEFAULT_ALIASES_BLOCK;
     }
 
@@ -484,6 +499,7 @@ function renderLocationsList() {
 function refreshSettingsUI() {
     const settings = getSettings();
     const selectedWorld = getSelectedWorldName();
+    const promptEnabled = !!settings.promptInjector;
 
     $('#location_background_enabled').prop('checked', !!settings.enabled);
     $('#location_background_show_toasts').prop('checked', !!settings.showToasts);
@@ -498,10 +514,17 @@ function refreshSettingsUI() {
     $('#location_background_aliases_block').val(String(settings.aliasesBlock ?? DEFAULT_ALIASES_BLOCK));
     $('#location_background_allow_multihop').prop('checked', !!settings.allowMultiHop);
     $('#location_background_multihop_block').val(String(settings.multiHopBlock ?? DEFAULT_MULTI_HOP_BLOCK));
-    $('#location_background_connected_block').prop('disabled', !settings.includeConnectedLocations);
-    $('#location_background_aliases_block').prop('disabled', !settings.includeAliases);
-    $('#location_background_multihop_block').prop('disabled', !settings.allowMultiHop);
-    $('#location_background_max_locations').prop('disabled', !settings.includeConnectedLocations);
+    $('#location_background_prompt_controls').toggleClass('location-background-disabled', !promptEnabled);
+    $('#location_background_prompt_text').prop('disabled', !promptEnabled);
+    $('#location_background_current_block').prop('disabled', !promptEnabled);
+    $('#location_background_prompt_depth').prop('disabled', !promptEnabled);
+    $('#location_background_include_connected').prop('disabled', !promptEnabled);
+    $('#location_background_include_aliases').prop('disabled', !promptEnabled);
+    $('#location_background_allow_multihop').prop('disabled', !promptEnabled);
+    $('#location_background_connected_block').prop('disabled', !promptEnabled || !settings.includeConnectedLocations);
+    $('#location_background_aliases_block').prop('disabled', !promptEnabled || !settings.includeAliases);
+    $('#location_background_multihop_block').prop('disabled', !promptEnabled || !settings.allowMultiHop);
+    $('#location_background_max_locations').prop('disabled', !promptEnabled || !settings.includeConnectedLocations);
     $('#location_background_max_locations').val(String(clampNumber(settings.maxPromptLocations, 1, 50, DEFAULT_SETTINGS.maxPromptLocations)));
     $('#location_background_prompt_depth').val(String(clampNumber(settings.promptDepth, 0, 10, DEFAULT_SETTINGS.promptDepth)));
     $('#location_background_world').val(selectedWorld);
