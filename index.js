@@ -5,11 +5,14 @@ const MODULE_NAME = 'location-background';
 const MODULE_LABEL = 'Location Background Manager';
 const SETTINGS_URL = new URL('./settings.html', import.meta.url);
 const LOCATION_CHANGED_EVENT = 'location-background:changed';
+const IGNORED_LOCATION_MARKERS = new Set(['none', 'unknown', 'same', 'unchanged', 'no change', 'n/a', 'null']);
 
 const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
     showToasts: false,
     debug: false,
+    markerDetection: true,
+    useLorebookActivation: false,
     selectedWorld: '',
     books: {},
 });
@@ -587,6 +590,127 @@ function getCurrentWorldMappings() {
     return settings.books[activeWorldName]?.entries ?? {};
 }
 
+function extractLocationMarker(text) {
+    const matches = [...String(text ?? '').matchAll(/\[LBM_LOCATION\s*:\s*([^\]\r\n]+)\]/gi)];
+    if (matches.length === 0) {
+        return '';
+    }
+
+    return normalizeName(matches.at(-1)?.[1]?.replace(/^["'`]+|["'`]+$/g, ''));
+}
+
+function isIgnoredLocationMarker(locationName) {
+    return !locationName || IGNORED_LOCATION_MARKERS.has(normalizeName(locationName).toLowerCase());
+}
+
+function getMappingLocationNames(uid, mapping) {
+    const entry = getEntryByUid(uid);
+    const names = [
+        mapping?.label,
+        ...(entry ? readEntryNames(entry) : []),
+    ];
+
+    return [...new Set(names.map(normalizeName).filter(Boolean))];
+}
+
+function findMappingByLocationName(locationName) {
+    const target = normalizeName(locationName).toLowerCase();
+    if (!target) {
+        return null;
+    }
+
+    for (const [uid, mapping] of Object.entries(getCurrentWorldMappings())) {
+        const names = getMappingLocationNames(uid, mapping);
+        if (!names.some((name) => name.toLowerCase() === target)) {
+            continue;
+        }
+
+        return {
+            uid,
+            entry: getEntryByUid(uid) ?? { uid, comment: mapping?.label || locationName },
+            mapping,
+        };
+    }
+
+    return null;
+}
+
+function extractMessageTextFromEventArgs(args) {
+    const context = getSillyTavernContext();
+
+    for (const value of args) {
+        if (typeof value === 'number') {
+            const message = context?.chat?.[value];
+            if (message?.mes) {
+                return message.mes;
+            }
+        }
+
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        if (value && typeof value === 'object') {
+            const candidates = [
+                value.mes,
+                value.text,
+                value.content,
+                value.message?.mes,
+                value.message?.text,
+                value.message?.content,
+            ];
+            const match = candidates.find((candidate) => typeof candidate === 'string' && candidate.trim());
+            if (match) {
+                return match;
+            }
+        }
+    }
+
+    return context?.chat?.at?.(-1)?.mes || '';
+}
+
+async function processLocationMarkerText(text) {
+    const settings = getSettings();
+    if (!settings.enabled || !settings.markerDetection || !activeWorldName) {
+        return false;
+    }
+
+    const locationName = extractLocationMarker(text);
+    if (isIgnoredLocationMarker(locationName)) {
+        return false;
+    }
+
+    const match = findMappingByLocationName(locationName);
+    if (!match?.mapping) {
+        if (settings.debug) {
+            setStatus(`Marker "${locationName}" is not configured as a location.`, true);
+        }
+        return false;
+    }
+
+    if (!match.mapping.background) {
+        if (settings.debug) {
+            setStatus(`Marker "${locationName}" has no background selected.`, true);
+        }
+        return false;
+    }
+
+    await applyEntryMapping(match.entry, match.mapping);
+    return true;
+}
+
+async function onChatMessageForLocationMarker(...args) {
+    try {
+        await processLocationMarkerText(extractMessageTextFromEventArgs(args));
+    } catch (error) {
+        warn(`Could not process location marker: ${error.message}`, error);
+    }
+}
+
+async function processLatestChatMessageMarker() {
+    await onChatMessageForLocationMarker();
+}
+
 function applyBackground(background) {
     const context = getSillyTavernContext();
     const command = `/bg ${JSON.stringify(String(background))}`;
@@ -686,7 +810,8 @@ async function applyEntryMapping(entry, mapping) {
 }
 
 async function onWorldInfoActivated(entries) {
-    if (!getSettings().enabled || !activeWorldName) {
+    const settings = getSettings();
+    if (!settings.enabled || !settings.useLorebookActivation || !activeWorldName) {
         return;
     }
 
@@ -723,6 +848,16 @@ function registerDebugApi() {
             refreshSettingsUI();
         },
         removeMapping: (worldName, uid, type = null) => removeEntryMapping(worldName, uid, type),
+        setMarkerDetection: (enabled) => {
+            getSettings().markerDetection = !!enabled;
+            saveSettings();
+            refreshSettingsUI();
+        },
+        setLorebookActivation: (enabled) => {
+            getSettings().useLorebookActivation = !!enabled;
+            saveSettings();
+            refreshSettingsUI();
+        },
         getState: () => structuredClone(getSettings()),
         eventName: LOCATION_CHANGED_EVENT,
     };
@@ -748,15 +883,25 @@ async function initialize() {
     const eventSource = context?.eventSource;
     const eventTypes = context?.eventTypes ?? context?.event_types;
 
-    if (eventSource && eventTypes?.WORLD_INFO_ACTIVATED && !eventsRegistered) {
+    if (eventSource && !eventsRegistered) {
         eventsRegistered = true;
-        eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
-        if (eventTypes.WORLDINFO_UPDATED) {
+        if (eventTypes?.WORLD_INFO_ACTIVATED) {
+            eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
+        }
+        for (const eventName of ['MESSAGE_RECEIVED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED']) {
+            if (eventTypes?.[eventName]) {
+                eventSource.on(eventTypes[eventName], onChatMessageForLocationMarker);
+            }
+        }
+        if (eventTypes?.GENERATION_ENDED) {
+            eventSource.on(eventTypes.GENERATION_ENDED, processLatestChatMessageMarker);
+        }
+        if (eventTypes?.WORLDINFO_UPDATED) {
             eventSource.on(eventTypes.WORLDINFO_UPDATED, async () => {
                 await refreshWorldNames();
             });
         }
-        if (eventTypes.CHAT_CHANGED) {
+        if (eventTypes?.CHAT_CHANGED) {
             eventSource.on(eventTypes.CHAT_CHANGED, async () => {
                 const settings = getSettings();
                 if (!settings.selectedWorld && availableWorldNames.length) {

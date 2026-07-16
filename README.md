@@ -7,8 +7,8 @@ This SillyTavern extension ties backgrounds to individual lorebook entries.
 1. Select a lorebook in the extension panel.
 2. In `Locations`, choose a lorebook entry from the dropdown.
 3. Press `+` to add that entry as a managed location.
-4. Pick or type a background filename for that location.
-5. When that entry becomes active, the extension applies the linked background.
+4. Pick a background filename for that location.
+5. When a chat message contains `[LBM_LOCATION: Location Name]`, the extension applies the linked background.
 
 ## Installation
 
@@ -27,7 +27,19 @@ The extension is designed for SillyTavern `1.18.x`.
 
 ## Runtime
 
-The selected `background` is applied directly with `/bg`. The extension also emits a `location-background:changed` browser event so later music, weather, or ambient effects can be added without changing the basic structure again.
+The selected `background` is applied directly with `/bg`. By default, the extension only switches when it sees an explicit location marker such as `[LBM_LOCATION: West Tower]`. This prevents normal mentions of a location from changing the background. The extension also emits a `location-background:changed` browser event so later music, weather, or ambient effects can be added without changing the basic structure again.
+
+## Location Marker
+
+Use this marker in assistant output or a reasoning/Stepped Thinking extension:
+
+```text
+[LBM_LOCATION: West Tower]
+```
+
+You can also place it in a hidden HTML comment: `<!-- [LBM_LOCATION: West Tower] -->`.
+
+The location name must match one of the entries you added under `Locations`.
 
 ## Debug
 
@@ -36,5 +48,7 @@ In the browser console:
 ```js
 locationBackgroundManager.reload()
 locationBackgroundManager.selectWorld("West Tower")
+locationBackgroundManager.setMarkerDetection(true)
+locationBackgroundManager.setLorebookActivation(false)
 locationBackgroundManager.getState()
 ```
