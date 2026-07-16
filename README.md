@@ -20,7 +20,7 @@ The extension is designed for SillyTavern `1.18.x`.
 
 - Pick a lorebook first.
 - Under `Locations`, select a lorebook entry and press `+`.
-- Use the background filename field to pick from current SillyTavern backgrounds or type a filename manually.
+- Use the background dropdown to pick from current SillyTavern backgrounds.
 - Use the trash button to remove a location entry from the manager.
 - Reload the lorebook list or the selected lorebook whenever you change things in SillyTavern.
 

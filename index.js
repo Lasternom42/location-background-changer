@@ -112,7 +112,7 @@ function getEntryLabel(entry) {
     }
 
     const keys = Array.isArray(entry?.key) ? entry.key.filter(Boolean).map(normalizeName) : [];
-    return keys.length ? keys.join(', ') : `UID ${entry?.uid ?? '?'}`;
+    return keys.length ? keys.join(', ') : 'Untitled entry';
 }
 
 function getEntryKeysText(entry) {
@@ -326,23 +326,11 @@ function renderEntryPicker() {
         const uid = String(entry.uid);
         picker.append($('<option>')
             .val(uid)
-            .text(`${getEntryLabel(entry)} (UID ${uid})`));
+            .text(getEntryLabel(entry)));
     }
 
     if (currentValue && availableEntries.some((entry) => String(entry.uid) === currentValue)) {
         picker.val(currentValue);
-    }
-}
-
-function renderBackgroundDatalist() {
-    const datalist = $('#location_background_backgrounds');
-    if (!datalist.length) {
-        return;
-    }
-
-    datalist.empty();
-    for (const background of getAvailableBackgroundNames()) {
-        datalist.append($('<option>').val(background));
     }
 }
 
@@ -372,22 +360,29 @@ function renderLocationsList() {
 
     for (const [uid, mapping] of entries) {
         const entry = getEntryByUid(uid);
-        const label = entry ? getEntryLabel(entry) : normalizeName(mapping?.label) || `UID ${uid}`;
+        const label = entry ? getEntryLabel(entry) : normalizeName(mapping?.label) || 'Unknown entry';
         const row = $('<tr>').attr('data-uid', uid);
 
         const labelCell = $('<td>');
         labelCell.append($('<div>').addClass('location-background-entry-title').text(label));
-        labelCell.append($('<div>').addClass('location-background-entry-meta').text(`UID ${uid}`));
 
         const backgroundCell = $('<td>');
-        backgroundCell.append($('<input>')
-            .addClass('text_pole wide100p location-background-background-input')
-            .attr('type', 'text')
-            .attr('list', 'location_background_backgrounds')
-            .attr('placeholder', 'Choose or type background filename')
-            .val(normalizeName(mapping?.background)));
+        const currentBackground = normalizeName(mapping?.background);
+        const backgroundSelect = $('<select>')
+            .addClass('text_pole wide100p location-background-background-select');
+        const backgroundNames = getAvailableBackgroundNames();
 
-        const actionsCell = $('<td>').addClass('location-background-actions');
+        backgroundSelect.append($('<option>').val('').text('Select background'));
+        for (const background of backgroundNames) {
+            backgroundSelect.append($('<option>').val(background).text(background));
+        }
+        backgroundSelect.val(currentBackground);
+        backgroundCell.append(backgroundSelect);
+
+        const actionsCell = $('<td>').addClass('location-background-actions').css({
+            width: '1%',
+            whiteSpace: 'nowrap',
+        });
         actionsCell.append($('<button>')
             .addClass('menu_button menu_button_small location-background-remove-entry')
             .attr('type', 'button')
@@ -414,7 +409,6 @@ function refreshSettingsUI() {
         ? `${lastAppliedDetail.entryLabel} -> ${lastAppliedDetail.background || 'no background'}`
         : 'None yet');
 
-    renderBackgroundDatalist();
     renderEntryPicker();
     renderLocationsList();
 }
@@ -505,9 +499,9 @@ function onAddLocationClick() {
     setStatus(`Added location "${getEntryLabel(entry)}".`);
 }
 
-function onBackgroundInputChange(event) {
-    const input = event.currentTarget;
-    const row = input.closest('tr');
+function onBackgroundSelectChange(event) {
+    const select = event.currentTarget;
+    const row = select.closest('tr');
     const uid = row?.getAttribute('data-uid');
     const entry = getEntryByUid(uid) ?? { uid };
 
@@ -515,7 +509,7 @@ function onBackgroundInputChange(event) {
         return;
     }
 
-    setEntryMapping(activeWorldName, entry, 'background', input.value);
+    setEntryMapping(activeWorldName, entry, 'background', select.value);
     setStatus(`Saved background for "${getEntryLabel(entry)}".`);
 }
 
@@ -528,8 +522,10 @@ function onRemoveEntryClick(event) {
         return;
     }
 
+    const entry = getEntryByUid(uid);
+    const label = entry ? getEntryLabel(entry) : getBookStore(activeWorldName, false)?.entries?.[uid]?.label || 'location entry';
     removeEntryMapping(activeWorldName, uid, null);
-    setStatus(`Removed entry UID ${uid} from the manager.`);
+    setStatus(`Removed "${label}" from the manager.`);
 }
 
 function bindSettingsEvents() {
@@ -557,7 +553,7 @@ function bindSettingsEvents() {
     });
 
     $('#location_background_add_entry').on('click', onAddLocationClick);
-    $('#location_background_locations_body').on('change', '.location-background-background-input', onBackgroundInputChange);
+    $('#location_background_locations_body').on('change', '.location-background-background-select', onBackgroundSelectChange);
     $('#location_background_locations_body').on('click', '.location-background-remove-entry', onRemoveEntryClick);
 }
 
@@ -714,7 +710,7 @@ function registerDebugApi() {
             const book = getBookStore(worldName, true);
             const entry = activeWorldData?.entries?.[String(uid)] ?? { uid };
             if (!book.entries[String(uid)]) {
-                book.entries[String(uid)] = { label: `UID ${uid}`, background: '', music: '', weather: '' };
+                book.entries[String(uid)] = { label: 'Untitled entry', background: '', music: '', weather: '' };
             }
             book.entries[String(uid)][type] = normalizeName(value);
             saveSettings();
