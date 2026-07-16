@@ -1,7 +1,6 @@
 import { extension_settings, getContext } from '../../../extensions.js';
 import { background_settings } from '../../../backgrounds.js';
 import { getRequestHeaders } from '../../../script.js';
-import { updateWorldInfoList, world_names } from '../../../world-info.js';
 
 const MODULE_NAME = 'location-background';
 const MODULE_LABEL = 'Location Background Manager';
@@ -20,6 +19,7 @@ let eventsRegistered = false;
 let settingsRendered = false;
 let activeWorldName = '';
 let activeWorldData = null;
+let availableWorldNames = [];
 let lastAppliedSignature = '';
 let lastAppliedDetail = null;
 let lastStatusMessage = 'Starting...';
@@ -181,6 +181,21 @@ function getSelectedWorldName() {
     return normalizeName(settings.selectedWorld);
 }
 
+async function fetchWorldNames() {
+    const response = await fetch('/api/settings/get', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Could not load lorebook list: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data.world_names) ? data.world_names : [];
+}
+
 function renderWorldOptions() {
     const select = $('#location_background_world');
     if (!select.length) {
@@ -194,7 +209,9 @@ function renderWorldOptions() {
 
     select.empty();
 
-    if (!Array.isArray(world_names) || world_names.length === 0) {
+    const worlds = availableWorldNames;
+
+    if (worlds.length === 0) {
         select.append($('<option>').val('').text('No lorebooks available'));
         select.prop('disabled', true);
         return;
@@ -203,14 +220,14 @@ function renderWorldOptions() {
     select.prop('disabled', false);
     select.append($('<option>').val('').text('Select a lorebook'));
 
-    for (const worldName of world_names) {
+    for (const worldName of worlds) {
         select.append($('<option>').val(worldName).text(worldName));
     }
 
-    if (selectedValue && world_names.includes(selectedValue)) {
+    if (selectedValue && worlds.includes(selectedValue)) {
         select.val(selectedValue);
-    } else if (!selectedValue && world_names.length > 0) {
-        const firstWorld = world_names[0];
+    } else if (!selectedValue && worlds.length > 0) {
+        const firstWorld = worlds[0];
         select.val(firstWorld);
         settings.selectedWorld = firstWorld;
         saveSettings();
@@ -316,7 +333,7 @@ function refreshSettingsUI() {
     $('#location_background_enabled').prop('checked', !!settings.enabled);
     $('#location_background_show_toasts').prop('checked', !!settings.showToasts);
     $('#location_background_world').val(selectedWorld);
-    $('#location_background_world_count').text(String(Array.isArray(world_names) ? world_names.length : 0));
+    $('#location_background_world_count').text(String(availableWorldNames.length));
     $('#location_background_selected_world').text(selectedWorld || 'None');
     $('#location_background_entry_count').text(String(Object.keys(activeWorldData?.entries || {}).length));
     $('#location_background_status').text(lastStatusMessage);
@@ -488,10 +505,7 @@ function bindSettingsEvents() {
 }
 
 async function refreshWorldNames() {
-    if (typeof updateWorldInfoList === 'function') {
-        await updateWorldInfoList();
-    }
-
+    availableWorldNames = await fetchWorldNames();
     renderWorldOptions();
     await loadSelectedWorld();
 }
@@ -686,8 +700,8 @@ async function initialize() {
         if (eventTypes.CHAT_CHANGED) {
             eventSource.on(eventTypes.CHAT_CHANGED, async () => {
                 const settings = getSettings();
-                if (!settings.selectedWorld && world_names.length) {
-                    settings.selectedWorld = world_names[0];
+                if (!settings.selectedWorld && availableWorldNames.length) {
+                    settings.selectedWorld = availableWorldNames[0];
                     saveSettings();
                 }
                 renderWorldOptions();
@@ -696,9 +710,7 @@ async function initialize() {
     }
 
     try {
-        if (typeof updateWorldInfoList === 'function') {
-            await updateWorldInfoList();
-        }
+        availableWorldNames = await fetchWorldNames();
     } catch {
         // Ignore - the dropdown can still populate from already loaded data.
     }
@@ -708,7 +720,12 @@ async function initialize() {
     setStatus(`Ready with ${Object.keys(getSettings().books || {}).length} lorebook(s) configured.`);
 }
 
-jQuery(() => {
+function startExtension() {
+    if (typeof globalThis.$ !== 'function') {
+        setTimeout(startExtension, 50);
+        return;
+    }
+
     initialize();
 
     const context = getSillyTavernContext();
@@ -718,4 +735,10 @@ jQuery(() => {
     if (eventSource && eventTypes?.APP_READY) {
         eventSource.on(eventTypes.APP_READY, initialize);
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startExtension, { once: true });
+} else {
+    startExtension();
+}
