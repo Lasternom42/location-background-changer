@@ -45,6 +45,8 @@ Settings:
 - `Prompt depth`: Passed to SillyTavern's extension prompt hook to control where this prompt is inserted.
 - `Prompt Preview`: Visible when `Debug` is enabled and shows the final injected text.
 
+Disabled prompt options grey out their text block but keep the custom text saved.
+
 Default base prompt:
 
 ```text

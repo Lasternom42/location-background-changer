@@ -459,6 +459,9 @@ function refreshSettingsUI() {
     $('#location_background_aliases_block').val(String(settings.aliasesBlock ?? DEFAULT_ALIASES_BLOCK));
     $('#location_background_allow_multihop').prop('checked', !!settings.allowMultiHop);
     $('#location_background_multihop_block').val(String(settings.multiHopBlock ?? DEFAULT_MULTI_HOP_BLOCK));
+    $('#location_background_connected_block').prop('disabled', !settings.includeConnectedLocations);
+    $('#location_background_aliases_block').prop('disabled', !settings.includeAliases);
+    $('#location_background_multihop_block').prop('disabled', !settings.allowMultiHop);
     $('#location_background_max_locations').val(String(clampNumber(settings.maxPromptLocations, 1, 50, DEFAULT_SETTINGS.maxPromptLocations)));
     $('#location_background_prompt_depth').val(String(clampNumber(settings.promptDepth, 0, 10, DEFAULT_SETTINGS.promptDepth)));
     $('#location_background_world').val(selectedWorld);

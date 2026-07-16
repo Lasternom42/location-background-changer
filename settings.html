@@ -54,6 +54,12 @@
             white-space: pre-wrap;
         }
 
+        #location_background_settings .location-background-block-text:disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
         #location_background_settings .location-background-number {
             width: 5em;
         }
@@ -132,45 +138,41 @@
                     <textarea id="location_background_current_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
-                <div class="location-background-prompt-grid marginTop10">
+                <div class="location-background-field">
                     <label class="checkbox_label" for="location_background_include_connected">
                         <input id="location_background_include_connected" type="checkbox">
                         <span>Include connected locations</span>
                     </label>
-
-                    <label class="checkbox_label" for="location_background_include_aliases">
-                        <input id="location_background_include_aliases" type="checkbox">
-                        <span>Include aliases</span>
-                    </label>
-
-                    <label class="checkbox_label" for="location_background_allow_multihop">
-                        <input id="location_background_allow_multihop" type="checkbox">
-                        <span>Allow multi-hop location changes</span>
-                    </label>
-                </div>
-
-                <div class="location-background-field">
-                    <h5>Connected locations block</h5>
                     <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
                 <div class="location-background-field">
-                    <h5>Aliases block</h5>
+                    <label class="checkbox_label" for="location_background_include_aliases">
+                        <input id="location_background_include_aliases" type="checkbox">
+                        <span>Include aliases</span>
+                    </label>
                     <textarea id="location_background_aliases_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
                 <div class="location-background-field">
-                    <h5>Multi-hop block</h5>
+                    <label class="checkbox_label" for="location_background_allow_multihop">
+                        <input id="location_background_allow_multihop" type="checkbox">
+                        <span>Allow multi-hop location changes</span>
+                    </label>
                     <textarea id="location_background_multihop_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
                 <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                     <label for="location_background_max_locations">Max locations</label>
                     <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
+                </div>
+                <small>Limits how many generated location choices are injected into the prompt.</small>
+
+                <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                     <label for="location_background_prompt_depth">Prompt depth</label>
                     <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
                 </div>
-                <small>Max locations limits how many generated choices are injected. Prompt depth controls where SillyTavern places this extension prompt.</small>
+                <small>Controls where SillyTavern places this extension prompt in the final prompt stack.</small>
             </div>
 
             <h4 class="marginTop10">Location Entries</h4>
