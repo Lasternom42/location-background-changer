@@ -22,6 +22,7 @@ The extension is designed for SillyTavern `1.18.x`.
 - Under `Locations`, select a lorebook entry and press `+`.
 - Use the background dropdown to pick from current SillyTavern backgrounds.
 - Use the trash button to remove a location entry from the manager.
+- Enable `Debug` to show lorebook counts, status, and last applied details.
 - Reload the lorebook list or the selected lorebook whenever you change things in SillyTavern.
 
 ## Runtime

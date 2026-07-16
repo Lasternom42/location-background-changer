@@ -1,19 +1,62 @@
 <div id="location_background_settings" class="location-background-settings">
+    <style>
+        #location_background_settings .location-background-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #location_background_settings .location-background-list,
+        #location_background_settings .location-background-list tr,
+        #location_background_settings .location-background-list td {
+            border: 0 !important;
+        }
+
+        #location_background_settings .location-background-list {
+            border-collapse: collapse;
+        }
+
+        #location_background_settings .location-background-list td {
+            padding: 4px 2px;
+            vertical-align: middle;
+        }
+
+        #location_background_settings .location-background-actions {
+            width: 1%;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        #location_background_settings .location-background-remove-entry {
+            min-width: 0;
+            width: 2em;
+            padding-left: 0;
+            padding-right: 0;
+        }
+    </style>
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
             <b>Location Background Manager</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <label class="checkbox_label" for="location_background_enabled">
-                <input id="location_background_enabled" type="checkbox">
-                <span>Enable automatic background changes</span>
-            </label>
+            <div class="location-background-options">
+                <label class="checkbox_label" for="location_background_enabled">
+                    <input id="location_background_enabled" type="checkbox">
+                    <span>Enable automatic background changes</span>
+                </label>
 
-            <label class="checkbox_label" for="location_background_show_toasts">
-                <input id="location_background_show_toasts" type="checkbox">
-                <span>Show toast messages</span>
-            </label>
+                <label class="checkbox_label" for="location_background_show_toasts">
+                    <input id="location_background_show_toasts" type="checkbox">
+                    <span>Show toast messages</span>
+                </label>
+
+                <label class="checkbox_label" for="location_background_debug">
+                    <input id="location_background_debug" type="checkbox">
+                    <span>Debug</span>
+                </label>
+            </div>
 
             <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                 <select id="location_background_world" class="text_pole flex1">
@@ -27,7 +70,7 @@
                 </button>
             </div>
 
-            <div class="marginTop10">
+            <div id="location_background_debug_info" class="marginTop10">
                 <div><b>Selected lorebook:</b> <span id="location_background_selected_world">None</span></div>
                 <div><b>Known lorebooks:</b> <span id="location_background_world_count">0</span></div>
                 <div><b>Entries loaded:</b> <span id="location_background_entry_count">0</span></div>
@@ -48,11 +91,11 @@
                 <small>Select an entry from the lorebook, then press + to manage it as a location.</small>
             </div>
 
-            <table class="responsiveTable wide100p marginTop10">
+            <table class="location-background-list wide100p marginTop10">
                 <colgroup>
-                    <col style="width: 40%;">
-                    <col style="width: 55%;">
-                    <col style="width: 1%;">
+                    <col>
+                    <col>
+                    <col style="width: 2em;">
                 </colgroup>
                 <tbody id="location_background_locations_body"></tbody>
             </table>

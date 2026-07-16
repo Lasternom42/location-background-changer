@@ -9,6 +9,7 @@ const LOCATION_CHANGED_EVENT = 'location-background:changed';
 const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
     showToasts: false,
+    debug: false,
     selectedWorld: '',
     books: {},
 });
@@ -379,10 +380,7 @@ function renderLocationsList() {
         backgroundSelect.val(currentBackground);
         backgroundCell.append(backgroundSelect);
 
-        const actionsCell = $('<td>').addClass('location-background-actions').css({
-            width: '1%',
-            whiteSpace: 'nowrap',
-        });
+        const actionsCell = $('<td>').addClass('location-background-actions');
         actionsCell.append($('<button>')
             .addClass('menu_button menu_button_small location-background-remove-entry')
             .attr('type', 'button')
@@ -400,6 +398,8 @@ function refreshSettingsUI() {
 
     $('#location_background_enabled').prop('checked', !!settings.enabled);
     $('#location_background_show_toasts').prop('checked', !!settings.showToasts);
+    $('#location_background_debug').prop('checked', !!settings.debug);
+    $('#location_background_debug_info').toggle(!!settings.debug);
     $('#location_background_world').val(selectedWorld);
     $('#location_background_world_count').text(String(availableWorldNames.length));
     $('#location_background_selected_world').text(selectedWorld || 'None');
@@ -537,6 +537,12 @@ function bindSettingsEvents() {
     $('#location_background_show_toasts').on('change', function () {
         getSettings().showToasts = !!$(this).prop('checked');
         saveSettings();
+    });
+
+    $('#location_background_debug').on('change', function () {
+        getSettings().debug = !!$(this).prop('checked');
+        saveSettings();
+        refreshSettingsUI();
     });
 
     $('#location_background_world').on('change', async function () {
