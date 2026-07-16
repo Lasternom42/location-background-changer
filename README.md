@@ -1,13 +1,14 @@
 # Location Background Manager
 
-This SillyTavern extension ties backgrounds, music, and weather to individual lorebook entries.
+This SillyTavern extension ties backgrounds to individual lorebook entries.
 
 ## How it works
 
 1. Select a lorebook in the extension panel.
-2. See all entries from that lorebook.
-3. Add a background, music, or weather value to any entry.
-4. When that entry becomes active, the extension applies the linked background and emits a change event for the extra fields.
+2. In `Locations`, choose a lorebook entry from the dropdown.
+3. Press `+` to add that entry as a managed location.
+4. Pick or type a background filename for that location.
+5. When that entry becomes active, the extension applies the linked background.
 
 ## Installation
 
@@ -18,14 +19,14 @@ The extension is designed for SillyTavern `1.18.x`.
 ## In The Panel
 
 - Pick a lorebook first.
-- Use the three buttons on each entry to add `Background`, `Music`, or `Weather`.
-- Use the small `x` buttons to remove a single mapping.
-- Use the trash button to remove all mappings for an entry.
+- Under `Locations`, select a lorebook entry and press `+`.
+- Use the background filename field to pick from current SillyTavern backgrounds or type a filename manually.
+- Use the trash button to remove a location entry from the manager.
 - Reload the lorebook list or the selected lorebook whenever you change things in SillyTavern.
 
 ## Runtime
 
-Only `background` is applied directly right now. `music` and `weather` are stored with the entry and exposed through the `location-background:changed` browser event so they can be wired up later without changing the structure again.
+The selected `background` is applied directly with `/bg`. The extension also emits a `location-background:changed` browser event so later music, weather, or ambient effects can be added without changing the basic structure again.
 
 ## Debug
 

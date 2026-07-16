@@ -120,8 +120,51 @@ function getEntryKeysText(entry) {
     return keys.length ? keys.join(', ') : '-';
 }
 
+function getSortedWorldEntries() {
+    if (!activeWorldData?.entries) {
+        return [];
+    }
+
+    return Object.values(activeWorldData.entries).sort((left, right) => {
+        const leftIndex = Number(left.displayIndex ?? left.uid ?? 0);
+        const rightIndex = Number(right.displayIndex ?? right.uid ?? 0);
+        return leftIndex - rightIndex;
+    });
+}
+
+function getEntryByUid(uid) {
+    return activeWorldData?.entries?.[String(uid)] ?? null;
+}
+
 function getEntryMapping(book, uid) {
     return book?.entries?.[String(uid)] ?? null;
+}
+
+function getAvailableBackgroundNames() {
+    const names = new Set();
+
+    for (const element of document.querySelectorAll('.bg_example')) {
+        const name = normalizeName(
+            element.getAttribute('bgfile')
+            || element.dataset?.bgfile
+            || element.dataset?.name
+            || element.getAttribute('title')
+            || element.textContent,
+        );
+
+        if (name) {
+            names.add(name);
+        }
+    }
+
+    for (const mapping of Object.values(getCurrentWorldMappings())) {
+        const background = normalizeName(mapping?.background);
+        if (background) {
+            names.add(background);
+        }
+    }
+
+    return [...names].sort((left, right) => left.localeCompare(right));
 }
 
 function setEntryMapping(worldName, entry, type, value) {
@@ -239,94 +282,119 @@ function renderWorldOptions() {
     }
 }
 
-function formatMappingBadge(label, value, type) {
-    const badge = $('<div>').addClass('location-background-badge');
-    badge.append($('<span>').addClass('location-background-badge-label').text(label));
-    badge.append($('<span>').addClass('location-background-badge-value').text(value));
-    badge.append($('<button>')
-        .addClass('menu_button menu_button_small location-background-remove')
-        .attr('type', 'button')
-        .attr('data-type', type)
-        .attr('title', `Remove ${label.toLowerCase()}`)
-        .append($('<i>').addClass('fa-solid fa-xmark')));
-    return badge;
+function renderEntryPicker() {
+    const picker = $('#location_background_entry_picker');
+    const addButton = $('#location_background_add_entry');
+    if (!picker.length) {
+        return;
+    }
+
+    const currentValue = normalizeName(picker.val());
+    const entries = getSortedWorldEntries();
+    const book = getBookStore(activeWorldName, false);
+    const configuredUids = new Set(Object.keys(book?.entries ?? {}));
+    const availableEntries = entries.filter((entry) => !configuredUids.has(String(entry.uid)));
+
+    picker.empty();
+
+    if (!activeWorldName) {
+        picker.append($('<option>').val('').text('Select a lorebook first'));
+        picker.prop('disabled', true);
+        addButton.prop('disabled', true);
+        return;
+    }
+
+    if (entries.length === 0) {
+        picker.append($('<option>').val('').text('This lorebook has no entries'));
+        picker.prop('disabled', true);
+        addButton.prop('disabled', true);
+        return;
+    }
+
+    if (availableEntries.length === 0) {
+        picker.append($('<option>').val('').text('All entries are already added'));
+        picker.prop('disabled', true);
+        addButton.prop('disabled', true);
+        return;
+    }
+
+    picker.prop('disabled', false);
+    addButton.prop('disabled', false);
+    picker.append($('<option>').val('').text('Select a lorebook entry'));
+
+    for (const entry of availableEntries) {
+        const uid = String(entry.uid);
+        picker.append($('<option>')
+            .val(uid)
+            .text(`${getEntryLabel(entry)} (UID ${uid})`));
+    }
+
+    if (currentValue && availableEntries.some((entry) => String(entry.uid) === currentValue)) {
+        picker.val(currentValue);
+    }
 }
 
-function renderEntriesTable() {
-    const body = $('#location_background_entries_body');
+function renderBackgroundDatalist() {
+    const datalist = $('#location_background_backgrounds');
+    if (!datalist.length) {
+        return;
+    }
+
+    datalist.empty();
+    for (const background of getAvailableBackgroundNames()) {
+        datalist.append($('<option>').val(background));
+    }
+}
+
+function renderLocationsList() {
+    const body = $('#location_background_locations_body');
     if (!body.length) {
         return;
     }
 
     body.empty();
 
-    if (!activeWorldData?.entries) {
-        body.append($('<tr>').append($('<td colspan="6">').text('No lorebook loaded')));
+    if (!activeWorldName) {
+        body.append($('<tr>').append($('<td colspan="3">').text('Select a lorebook first')));
         return;
     }
-
-    const entries = Object.values(activeWorldData.entries).sort((left, right) => {
-        const leftIndex = Number(left.displayIndex ?? left.uid ?? 0);
-        const rightIndex = Number(right.displayIndex ?? right.uid ?? 0);
-        return leftIndex - rightIndex;
-    });
 
     const book = getBookStore(activeWorldName, false);
+    const mappings = book?.entries ?? {};
+    const entries = Object.entries(mappings).sort(([, left], [, right]) => {
+        return normalizeName(left?.label).localeCompare(normalizeName(right?.label));
+    });
 
     if (entries.length === 0) {
-        body.append($('<tr>').append($('<td colspan="6">').text('This lorebook has no entries yet')));
+        body.append($('<tr>').append($('<td colspan="3">').text('No location entries added yet')));
         return;
     }
 
-    for (const entry of entries) {
-        const uid = String(entry.uid);
-        const mapping = getEntryMapping(book, uid);
+    for (const [uid, mapping] of entries) {
+        const entry = getEntryByUid(uid);
+        const label = entry ? getEntryLabel(entry) : normalizeName(mapping?.label) || `UID ${uid}`;
         const row = $('<tr>').attr('data-uid', uid);
 
         const labelCell = $('<td>');
-        labelCell.append($('<div>').addClass('location-background-entry-title').text(getEntryLabel(entry)));
+        labelCell.append($('<div>').addClass('location-background-entry-title').text(label));
         labelCell.append($('<div>').addClass('location-background-entry-meta').text(`UID ${uid}`));
 
-        const keysCell = $('<td>').text(getEntryKeysText(entry));
-        const backgroundCell = $('<td>').addClass('location-background-mapping-cell');
-        const musicCell = $('<td>').addClass('location-background-mapping-cell');
-        const weatherCell = $('<td>').addClass('location-background-mapping-cell');
+        const backgroundCell = $('<td>');
+        backgroundCell.append($('<input>')
+            .addClass('text_pole wide100p location-background-background-input')
+            .attr('type', 'text')
+            .attr('list', 'location_background_backgrounds')
+            .attr('placeholder', 'Choose or type background filename')
+            .val(normalizeName(mapping?.background)));
+
         const actionsCell = $('<td>').addClass('location-background-actions');
+        actionsCell.append($('<button>')
+            .addClass('menu_button menu_button_small location-background-remove-entry')
+            .attr('type', 'button')
+            .attr('title', 'Remove location entry')
+            .append($('<i>').addClass('fa-solid fa-trash')));
 
-        if (mapping?.background) {
-            backgroundCell.append(formatMappingBadge('Background', mapping.background, 'background'));
-        } else {
-            backgroundCell.text('-');
-        }
-
-        if (mapping?.music) {
-            musicCell.append(formatMappingBadge('Music', mapping.music, 'music'));
-        } else {
-            musicCell.text('-');
-        }
-
-        if (mapping?.weather) {
-            weatherCell.append(formatMappingBadge('Weather', mapping.weather, 'weather'));
-        } else {
-            weatherCell.text('-');
-        }
-
-        actionsCell.append(`
-            <button class="menu_button menu_button_small location-background-add" type="button" data-type="background" title="Add background">
-                <i class="fa-solid fa-image"></i>
-            </button>
-            <button class="menu_button menu_button_small location-background-add" type="button" data-type="music" title="Add music">
-                <i class="fa-solid fa-music"></i>
-            </button>
-            <button class="menu_button menu_button_small location-background-add" type="button" data-type="weather" title="Add weather">
-                <i class="fa-solid fa-cloud-sun"></i>
-            </button>
-            <button class="menu_button menu_button_small location-background-remove-entry" type="button" title="Remove all mappings">
-                <i class="fa-solid fa-trash"></i>
-            </button>
-        `);
-
-        row.append(labelCell, keysCell, backgroundCell, musicCell, weatherCell, actionsCell);
+        row.append(labelCell, backgroundCell, actionsCell);
         body.append(row);
     }
 }
@@ -346,7 +414,9 @@ function refreshSettingsUI() {
         ? `${lastAppliedDetail.entryLabel} -> ${lastAppliedDetail.background || 'no background'}`
         : 'None yet');
 
-    renderEntriesTable();
+    renderBackgroundDatalist();
+    renderEntryPicker();
+    renderLocationsList();
 }
 
 async function renderSettingsPanel() {
@@ -422,49 +492,31 @@ async function loadSelectedWorld(worldName = getSelectedWorldName()) {
     }
 }
 
-function promptForValue(type, entryLabel, currentValue = '') {
-    const current = currentValue ? `\nCurrent: ${currentValue}` : '';
-    const value = window.prompt(`Set ${type} for "${entryLabel}"${current}`, currentValue || '');
-    return normalizeName(value);
+function onAddLocationClick() {
+    const uid = normalizeName($('#location_background_entry_picker').val());
+    const entry = getEntryByUid(uid);
+
+    if (!entry) {
+        setStatus('Select a lorebook entry first.', true);
+        return;
+    }
+
+    setEntryMapping(activeWorldName, entry, 'background', '');
+    setStatus(`Added location "${getEntryLabel(entry)}".`);
 }
 
-function onAddMappingClick(event) {
-    const button = event.currentTarget;
-    const row = button.closest('tr');
+function onBackgroundInputChange(event) {
+    const input = event.currentTarget;
+    const row = input.closest('tr');
     const uid = row?.getAttribute('data-uid');
-    const type = button.dataset.type;
-    const entry = activeWorldData?.entries?.[uid];
+    const entry = getEntryByUid(uid) ?? { uid };
 
-    if (!entry || !type) {
+    if (!uid) {
         return;
     }
 
-    const book = getBookStore(activeWorldName, true);
-    const currentValue = book.entries?.[uid]?.[type] || '';
-    const value = promptForValue(type, getEntryLabel(entry), currentValue);
-    if (!value) {
-        return;
-    }
-
-    setEntryMapping(activeWorldName, entry, type, value);
-    setStatus(`Saved ${type} for "${getEntryLabel(entry)}".`);
-    if (getSettings().showToasts) {
-        showToast('info', `${getEntryLabel(entry)}: ${type} updated`);
-    }
-}
-
-function onRemoveMappingClick(event) {
-    const button = event.currentTarget;
-    const row = button.closest('tr');
-    const uid = row?.getAttribute('data-uid');
-    const type = button.dataset.type;
-
-    if (!uid || !type) {
-        return;
-    }
-
-    removeEntryMapping(activeWorldName, uid, type);
-    setStatus(`Removed ${type} from entry UID ${uid}.`);
+    setEntryMapping(activeWorldName, entry, 'background', input.value);
+    setStatus(`Saved background for "${getEntryLabel(entry)}".`);
 }
 
 function onRemoveEntryClick(event) {
@@ -504,9 +556,9 @@ function bindSettingsEvents() {
         await loadSelectedWorld();
     });
 
-    $('#location_background_entries_body').on('click', '.location-background-add', onAddMappingClick);
-    $('#location_background_entries_body').on('click', '.location-background-remove', onRemoveMappingClick);
-    $('#location_background_entries_body').on('click', '.location-background-remove-entry', onRemoveEntryClick);
+    $('#location_background_add_entry').on('click', onAddLocationClick);
+    $('#location_background_locations_body').on('change', '.location-background-background-input', onBackgroundInputChange);
+    $('#location_background_locations_body').on('click', '.location-background-remove-entry', onRemoveEntryClick);
 }
 
 async function refreshWorldNames() {

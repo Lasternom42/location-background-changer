@@ -35,18 +35,30 @@
                 <div><b>Last applied:</b> <span id="location_background_last">None yet</span></div>
             </div>
 
+            <div class="marginTop10">
+                <h4>Locations</h4>
+                <div class="flex-container alignItemsCenter flexGap5">
+                    <select id="location_background_entry_picker" class="text_pole flex1">
+                        <option value="">Select a lorebook entry</option>
+                    </select>
+                    <button id="location_background_add_entry" class="menu_button" type="button" title="Add selected location">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+                <small>Select an entry from the lorebook, then press + to manage it as a location.</small>
+            </div>
+
+            <datalist id="location_background_backgrounds"></datalist>
+
             <table class="responsiveTable wide100p marginTop10">
                 <thead>
                     <tr>
-                        <th>Entry</th>
-                        <th>Keys</th>
                         <th>Background</th>
-                        <th>Music</th>
-                        <th>Weather</th>
+                        <th>Background file</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody id="location_background_entries_body"></tbody>
+                <tbody id="location_background_locations_body"></tbody>
             </table>
         </div>
     </div>
