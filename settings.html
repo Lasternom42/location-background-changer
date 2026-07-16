@@ -67,6 +67,18 @@
         #location_background_settings .location-background-field {
             margin-top: 10px;
         }
+
+        #location_background_settings .location-background-section {
+            border-top: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35));
+            margin-top: 14px;
+            padding-top: 12px;
+        }
+
+        #location_background_settings .location-background-number:disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
     </style>
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
@@ -91,27 +103,30 @@
                 </label>
             </div>
 
-            <div class="flex-container alignItemsCenter flexGap5 marginTop10">
-                <select id="location_background_world" class="text_pole flex1">
-                    <option value="">Select a lorebook</option>
-                </select>
-                <button id="location_background_refresh_worlds" class="menu_button" type="button" title="Reload lorebook list">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                </button>
-                <button id="location_background_reload_world" class="menu_button" type="button" title="Reload selected lorebook">
-                    <i class="fa-solid fa-rotate-right"></i>
-                </button>
+            <div class="location-background-section">
+                <h4>Lorebook Selector</h4>
+                <div class="flex-container alignItemsCenter flexGap5">
+                    <select id="location_background_world" class="text_pole flex1">
+                        <option value="">Select a lorebook</option>
+                    </select>
+                    <button id="location_background_refresh_worlds" class="menu_button" type="button" title="Reload lorebook list">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                    <button id="location_background_reload_world" class="menu_button" type="button" title="Reload selected lorebook">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+
+                <div id="location_background_debug_info" class="marginTop10">
+                    <div><b>Selected lorebook:</b> <span id="location_background_selected_world">None</span></div>
+                    <div><b>Known lorebooks:</b> <span id="location_background_world_count">0</span></div>
+                    <div><b>Entries loaded:</b> <span id="location_background_entry_count">0</span></div>
+                    <div><b>Status:</b> <span id="location_background_status">Starting...</span></div>
+                    <div><b>Last applied:</b> <span id="location_background_last">None yet</span></div>
+                </div>
             </div>
 
-            <div id="location_background_debug_info" class="marginTop10">
-                <div><b>Selected lorebook:</b> <span id="location_background_selected_world">None</span></div>
-                <div><b>Known lorebooks:</b> <span id="location_background_world_count">0</span></div>
-                <div><b>Entries loaded:</b> <span id="location_background_entry_count">0</span></div>
-                <div><b>Status:</b> <span id="location_background_status">Starting...</span></div>
-                <div><b>Last applied:</b> <span id="location_background_last">None yet</span></div>
-            </div>
-
-            <div class="marginTop10">
+            <div class="location-background-section">
                 <h4>Locations</h4>
                 <div class="flex-container alignItemsCenter flexGap5">
                     <select id="location_background_entry_picker" class="text_pole flex1">
@@ -122,9 +137,19 @@
                     </button>
                 </div>
                 <small>Select an entry from the lorebook, then press + to manage it as a location.</small>
+
+                <h4 class="marginTop10">Location Entries</h4>
+                <table class="location-background-list wide100p marginTop10">
+                    <colgroup>
+                        <col>
+                        <col>
+                        <col style="width: 2em;">
+                    </colgroup>
+                    <tbody id="location_background_locations_body"></tbody>
+                </table>
             </div>
 
-            <div class="marginTop10">
+            <div class="location-background-section">
                 <h4>Location Prompt Insert</h4>
                 <label class="checkbox_label" for="location_background_prompt_injector">
                     <input id="location_background_prompt_injector" type="checkbox">
@@ -144,6 +169,11 @@
                         <span>Include connected locations</span>
                     </label>
                     <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
+                    <div class="flex-container alignItemsCenter flexGap5 marginTop10">
+                        <label for="location_background_max_locations">Max locations</label>
+                        <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
+                    </div>
+                    <small>Limits how many generated connected-location choices are injected into the prompt.</small>
                 </div>
 
                 <div class="location-background-field">
@@ -163,31 +193,15 @@
                 </div>
 
                 <div class="flex-container alignItemsCenter flexGap5 marginTop10">
-                    <label for="location_background_max_locations">Max locations</label>
-                    <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
-                </div>
-                <small>Limits how many generated location choices are injected into the prompt.</small>
-
-                <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                     <label for="location_background_prompt_depth">Prompt depth</label>
                     <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
                 </div>
                 <small>Controls where SillyTavern places this extension prompt in the final prompt stack.</small>
-            </div>
 
-            <h4 class="marginTop10">Location Entries</h4>
-            <table class="location-background-list wide100p marginTop10">
-                <colgroup>
-                    <col>
-                    <col>
-                    <col style="width: 2em;">
-                </colgroup>
-                <tbody id="location_background_locations_body"></tbody>
-            </table>
-
-            <div id="location_background_prompt_preview_block" class="marginTop10">
-                <h4>Prompt Preview</h4>
-                <textarea id="location_background_prompt_preview" class="text_pole wide100p location-background-prompt-preview" readonly></textarea>
+                <div id="location_background_prompt_preview_block" class="marginTop10">
+                    <h4>Prompt Preview</h4>
+                    <textarea id="location_background_prompt_preview" class="text_pole wide100p location-background-prompt-preview" readonly></textarea>
+                </div>
             </div>
         </div>
     </div>

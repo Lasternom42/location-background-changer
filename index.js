@@ -6,8 +6,15 @@ const MODULE_LABEL = 'Location Background Manager';
 const SETTINGS_URL = new URL('./settings.html', import.meta.url);
 const LOCATION_CHANGED_EVENT = 'location-background:changed';
 const IGNORED_LOCATION_MARKERS = new Set(['none', 'unknown', 'same', 'unchanged', 'no change', 'n/a', 'null']);
-const DEFAULT_LOCATION_PROMPT = [
+const LEGACY_LOCATION_PROMPT = [
     'Choose the current location from the location graph only.',
+    'Never invent new location names.',
+    'End every narrator reply with:',
+    'Location: Exact Location Node Name',
+    'If uncertain, keep the previous exact location.',
+].join('\n');
+const DEFAULT_LOCATION_PROMPT = [
+    'Choose the current location from the selected lorebook location entries only.',
     'Never invent new location names.',
     'End every narrator reply with:',
     'Location: Exact Location Node Name',
@@ -99,6 +106,10 @@ function getSettings() {
 
     if (!settings.books || typeof settings.books !== 'object' || Array.isArray(settings.books)) {
         settings.books = {};
+    }
+
+    if (settings.locationPrompt === LEGACY_LOCATION_PROMPT) {
+        settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
     }
 
     return settings;
@@ -462,6 +473,7 @@ function refreshSettingsUI() {
     $('#location_background_connected_block').prop('disabled', !settings.includeConnectedLocations);
     $('#location_background_aliases_block').prop('disabled', !settings.includeAliases);
     $('#location_background_multihop_block').prop('disabled', !settings.allowMultiHop);
+    $('#location_background_max_locations').prop('disabled', !settings.includeConnectedLocations);
     $('#location_background_max_locations').val(String(clampNumber(settings.maxPromptLocations, 1, 50, DEFAULT_SETTINGS.maxPromptLocations)));
     $('#location_background_prompt_depth').val(String(clampNumber(settings.promptDepth, 0, 10, DEFAULT_SETTINGS.promptDepth)));
     $('#location_background_world').val(selectedWorld);

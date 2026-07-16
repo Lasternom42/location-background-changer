@@ -35,14 +35,14 @@ Settings:
 - `Use prompt injector`: Enables or disables prompt injection.
 - `Location prompt`: The editable base instruction sent before generation.
 - `Current location block`: Always added when a current location is known. Supports `{{currentLocation}}`.
-- `Include connected locations`: Enables the connected locations block. Supports `{{connectedLocations}}`.
+- `Include connected locations`: Enables the connected locations block and its `Max locations` limit. Supports `{{connectedLocations}}`.
 - `Connected locations block`: Editable prompt text for nearby node choices and lorebook format guidance.
 - `Include aliases`: Enables the aliases block. Supports `{{aliases}}`.
 - `Aliases block`: Editable prompt text for alias handling and lorebook format guidance.
 - `Allow multi-hop location changes`: Enables the multi-hop block.
 - `Multi-hop block`: Editable prompt text for movement through multiple connected spaces.
-- `Max locations`: Limits how many generated location choices are injected, keeping the prompt compact.
-- `Prompt depth`: Passed to SillyTavern's extension prompt hook to control where this prompt is inserted.
+- `Max locations`: Limits how many connected-location choices are injected, keeping the prompt compact.
+- `Prompt depth`: Passed to SillyTavern's extension prompt hook. It controls where this extension prompt is placed in the final prompt stack; `0` is the safest default.
 - `Prompt Preview`: Visible when `Debug` is enabled and shows the final injected text.
 
 Disabled prompt options grey out their text block but keep the custom text saved.
@@ -50,7 +50,7 @@ Disabled prompt options grey out their text block but keep the custom text saved
 Default base prompt:
 
 ```text
-Choose the current location from the location graph only.
+Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
 Location: Exact Location Node Name
@@ -60,7 +60,7 @@ If uncertain, keep the previous exact location.
 Example final injected prompt:
 
 ```text
-Choose the current location from the location graph only.
+Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
 Location: Exact Location Node Name
