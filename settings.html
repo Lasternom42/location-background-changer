@@ -34,6 +34,23 @@
             padding-left: 0;
             padding-right: 0;
         }
+
+        #location_background_settings .location-background-prompt-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 6px 10px;
+        }
+
+        #location_background_settings .location-background-prompt-text,
+        #location_background_settings .location-background-prompt-preview {
+            min-height: 7em;
+            resize: vertical;
+            white-space: pre-wrap;
+        }
+
+        #location_background_settings .location-background-number {
+            width: 5em;
+        }
     </style>
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
@@ -91,6 +108,45 @@
                 <small>Select an entry from the lorebook, then press + to manage it as a location.</small>
             </div>
 
+            <div class="marginTop10">
+                <h4>Location Prompt Insert</h4>
+                <label class="checkbox_label" for="location_background_prompt_injector">
+                    <input id="location_background_prompt_injector" type="checkbox">
+                    <span>Use prompt injector</span>
+                </label>
+
+                <textarea id="location_background_prompt_text" class="text_pole wide100p location-background-prompt-text"></textarea>
+
+                <div class="location-background-prompt-grid marginTop10">
+                    <label class="checkbox_label" for="location_background_include_current">
+                        <input id="location_background_include_current" type="checkbox">
+                        <span>Include current location</span>
+                    </label>
+
+                    <label class="checkbox_label" for="location_background_include_connected">
+                        <input id="location_background_include_connected" type="checkbox">
+                        <span>Include connected locations</span>
+                    </label>
+
+                    <label class="checkbox_label" for="location_background_include_aliases">
+                        <input id="location_background_include_aliases" type="checkbox">
+                        <span>Include aliases</span>
+                    </label>
+
+                    <label class="checkbox_label" for="location_background_allow_multihop">
+                        <input id="location_background_allow_multihop" type="checkbox">
+                        <span>Allow multi-hop location changes</span>
+                    </label>
+                </div>
+
+                <div class="flex-container alignItemsCenter flexGap5 marginTop10">
+                    <label for="location_background_max_locations">Max locations</label>
+                    <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
+                    <label for="location_background_prompt_depth">Prompt depth</label>
+                    <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
+                </div>
+            </div>
+
             <table class="location-background-list wide100p marginTop10">
                 <colgroup>
                     <col>
@@ -99,6 +155,11 @@
                 </colgroup>
                 <tbody id="location_background_locations_body"></tbody>
             </table>
+
+            <div id="location_background_prompt_preview_block" class="marginTop10">
+                <h4>Prompt Preview</h4>
+                <textarea id="location_background_prompt_preview" class="text_pole wide100p location-background-prompt-preview" readonly></textarea>
+            </div>
         </div>
     </div>
 </div>

@@ -21,9 +21,65 @@ The extension is designed for SillyTavern `1.18.x`.
 - Pick a lorebook first.
 - Under `Locations`, select a lorebook entry and press `+`.
 - Use the background dropdown to pick from current SillyTavern backgrounds.
+- Use `Location Prompt Insert` to inject narrator location rules without editing character cards.
 - Use the trash button to remove a location entry from the manager.
 - Enable `Debug` to show lorebook counts, status, and last applied details.
 - Reload the lorebook list or the selected lorebook whenever you change things in SillyTavern.
+
+## Location Prompt Insert
+
+The prompt injector is extension-driven. It uses the selected lorebook and only the location entries you added under `Locations`.
+
+Settings:
+
+- `Use prompt injector`: Enables or disables prompt injection.
+- `Location prompt`: The editable base instruction sent before generation.
+- `Include current location`: Adds the last applied location as scene context.
+- `Include connected locations`: Adds connected nodes from the current location entry.
+- `Include aliases`: Adds compact alias hints from entry keys and `Aliases:` sections.
+- `Allow multi-hop location changes`: Adds guidance for movement across multiple connected nodes in one reply.
+- `Max locations`: Limits how many generated location choices are injected.
+- `Prompt depth`: Passed to SillyTavern's extension prompt hook.
+- `Prompt Preview`: Visible when `Debug` is enabled and shows the final injected text.
+
+Default base prompt:
+
+```text
+Choose the current location from the location graph only.
+Never invent new location names.
+End every narrator reply with:
+Location: Exact Location Node Name
+If uncertain, keep the previous exact location.
+```
+
+Example final injected prompt:
+
+```text
+Choose the current location from the location graph only.
+Never invent new location names.
+End every narrator reply with:
+Location: Exact Location Node Name
+If uncertain, keep the previous exact location.
+
+Current scene context:
+- Current location: West Tower Entrance
+
+Connected locations:
+- West Tower Forest
+- West Tower Observation Deck
+```
+
+Optional lorebook entry sections:
+
+```text
+Aliases:
+- outside the west tower
+- tower approach
+
+Connected locations:
+- West Tower Forest
+- West Tower Observation Deck
+```
 
 ## Runtime
 
@@ -63,5 +119,7 @@ locationBackgroundManager.selectWorld("West Tower")
 locationBackgroundManager.setMarkerDetection(true)
 locationBackgroundManager.setLorebookActivation(false)
 locationBackgroundManager.testText("Location: West Tower Entrance")
+locationBackgroundManager.getPrompt()
+locationBackgroundManager.refreshPrompt()
 locationBackgroundManager.getState()
 ```
