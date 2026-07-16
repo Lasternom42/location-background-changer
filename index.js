@@ -1,6 +1,5 @@
 import { extension_settings, getContext } from '../../../extensions.js';
 import { background_settings } from '../../../backgrounds.js';
-import { getRequestHeaders } from '../../../script.js';
 
 const MODULE_NAME = 'location-background';
 const MODULE_LABEL = 'Location Background Manager';
@@ -26,6 +25,12 @@ let lastStatusMessage = 'Starting...';
 
 function getSillyTavernContext() {
     return getContext?.() ?? globalThis.SillyTavern?.getContext?.();
+}
+
+function getSillyTavernHeaders() {
+    return getSillyTavernContext()?.getRequestHeaders?.() ?? {
+        'Content-Type': 'application/json',
+    };
 }
 
 function getSettings() {
@@ -184,7 +189,7 @@ function getSelectedWorldName() {
 async function fetchWorldNames() {
     const response = await fetch('/api/settings/get', {
         method: 'POST',
-        headers: getRequestHeaders(),
+        headers: getSillyTavernHeaders(),
         body: JSON.stringify({}),
     });
 
@@ -375,7 +380,7 @@ async function fetchWorldBook(worldName) {
 
     const response = await fetch('/api/worldinfo/get', {
         method: 'POST',
-        headers: getRequestHeaders(),
+        headers: getSillyTavernHeaders(),
         body: JSON.stringify({ name: worldName }),
         cache: 'no-cache',
     });
