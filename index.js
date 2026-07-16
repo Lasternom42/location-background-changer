@@ -599,6 +599,50 @@ function extractLocationMarker(text) {
     return normalizeName(matches.at(-1)?.[1]?.replace(/^["'`]+|["'`]+$/g, ''));
 }
 
+function getLocationMatchKeys(value) {
+    const normalized = normalizeName(value).toLowerCase();
+    const wordsOnly = normalizeName(normalized
+        .replace(/<!--|-->/g, ' ')
+        .replace(/[()[\]{}"'`]/g, ' ')
+        .replace(/[-–—_:\/\\]+/g, ' ')
+        .replace(/[^\p{L}\p{N}\s]+/gu, ' '));
+    const compact = wordsOnly.replace(/\s+/g, '');
+
+    return new Set([normalized, wordsOnly, compact].filter(Boolean));
+}
+
+function hasSharedLocationKey(left, right) {
+    const leftKeys = getLocationMatchKeys(left);
+    const rightKeys = getLocationMatchKeys(right);
+
+    for (const key of leftKeys) {
+        if (rightKeys.has(key)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function extractLocationLine(text) {
+    const lines = String(text ?? '')
+        .split(/\r?\n/)
+        .map((line) => normalizeName(line.replace(/<!--|-->/g, '').replace(/^["'`]+|["'`.,;:!?]+$/g, '')))
+        .filter(Boolean);
+
+    for (const line of lines.slice(-6).reverse()) {
+        if (line.length > 100 || isIgnoredLocationMarker(line)) {
+            continue;
+        }
+
+        if (findMappingByLocationName(line)) {
+            return line;
+        }
+    }
+
+    return '';
+}
+
 function isIgnoredLocationMarker(locationName) {
     return !locationName || IGNORED_LOCATION_MARKERS.has(normalizeName(locationName).toLowerCase());
 }
@@ -614,14 +658,14 @@ function getMappingLocationNames(uid, mapping) {
 }
 
 function findMappingByLocationName(locationName) {
-    const target = normalizeName(locationName).toLowerCase();
+    const target = normalizeName(locationName);
     if (!target) {
         return null;
     }
 
     for (const [uid, mapping] of Object.entries(getCurrentWorldMappings())) {
         const names = getMappingLocationNames(uid, mapping);
-        if (!names.some((name) => name.toLowerCase() === target)) {
+        if (!names.some((name) => hasSharedLocationKey(name, target))) {
             continue;
         }
 
@@ -675,7 +719,7 @@ async function processLocationMarkerText(text) {
         return false;
     }
 
-    const locationName = extractLocationMarker(text);
+    const locationName = extractLocationMarker(text) || extractLocationLine(text);
     if (isIgnoredLocationMarker(locationName)) {
         return false;
     }
@@ -858,6 +902,7 @@ function registerDebugApi() {
             saveSettings();
             refreshSettingsUI();
         },
+        testText: async (text) => processLocationMarkerText(text),
         getState: () => structuredClone(getSettings()),
         eventName: LOCATION_CHANGED_EVENT,
     };

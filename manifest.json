@@ -6,7 +6,7 @@
   "dependencies": [],
   "js": "index.js",
   "author": "Your Name",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "homePage": "https://github.com/your-name/sillytavern-location-background",
   "auto_update": true,
   "minimum_client_version": "1.18.0"

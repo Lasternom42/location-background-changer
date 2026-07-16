@@ -41,6 +41,12 @@ You can also place it in a hidden HTML comment: `<!-- [LBM_LOCATION: West Tower]
 
 The location name must match one of the entries you added under `Locations`.
 
+If no marker is present, the extension also checks the last few lines for a configured location name. This supports narrator endings like:
+
+```text
+West Tower - Observation Deck
+```
+
 ## Debug
 
 In the browser console:
@@ -50,5 +56,6 @@ locationBackgroundManager.reload()
 locationBackgroundManager.selectWorld("West Tower")
 locationBackgroundManager.setMarkerDetection(true)
 locationBackgroundManager.setLorebookActivation(false)
+locationBackgroundManager.testText("West Tower - Observation Deck")
 locationBackgroundManager.getState()
 ```
