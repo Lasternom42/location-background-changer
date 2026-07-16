@@ -69,9 +69,15 @@
         }
 
         #location_background_settings .location-background-section {
-            border-top: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35));
             margin-top: 14px;
             padding-top: 12px;
+        }
+
+        #location_background_settings .location-background-divider {
+            border: 0;
+            border-top: 1px solid var(--SmartThemeQuoteColor, rgba(128, 128, 128, 0.45));
+            margin: 14px 0 0;
+            opacity: 0.9;
         }
 
         #location_background_settings .location-background-number:disabled {
@@ -103,6 +109,7 @@
                 </label>
             </div>
 
+            <hr class="location-background-divider">
             <div class="location-background-section">
                 <h4>Lorebook Selector</h4>
                 <div class="flex-container alignItemsCenter flexGap5">
@@ -126,6 +133,7 @@
                 </div>
             </div>
 
+            <hr class="location-background-divider">
             <div class="location-background-section">
                 <h4>Locations</h4>
                 <div class="flex-container alignItemsCenter flexGap5">
@@ -149,12 +157,19 @@
                 </table>
             </div>
 
+            <hr class="location-background-divider">
             <div class="location-background-section">
                 <h4>Location Prompt Insert</h4>
                 <label class="checkbox_label" for="location_background_prompt_injector">
                     <input id="location_background_prompt_injector" type="checkbox">
                     <span>Use prompt injector</span>
                 </label>
+
+                <div class="flex-container alignItemsCenter flexGap5 marginTop10">
+                    <label for="location_background_prompt_depth">Prompt depth</label>
+                    <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
+                </div>
+                <small>Controls where SillyTavern places this extension prompt in the final prompt stack.</small>
 
                 <textarea id="location_background_prompt_text" class="text_pole wide100p location-background-prompt-text"></textarea>
 
@@ -168,12 +183,13 @@
                         <input id="location_background_include_connected" type="checkbox">
                         <span>Include connected locations</span>
                     </label>
-                    <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
                     <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                         <label for="location_background_max_locations">Max locations</label>
                         <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
                     </div>
                     <small>Limits how many generated connected-location choices are injected into the prompt.</small>
+                    <small>Lorebook entry format example: Connected locations: West Tower Forest, West Tower Observation Deck</small>
+                    <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
                 <div class="location-background-field">
@@ -181,6 +197,8 @@
                         <input id="location_background_include_aliases" type="checkbox">
                         <span>Include aliases</span>
                     </label>
+                    <small>Use aliases to convert scene wording to the exact location node name.</small>
+                    <small>Lorebook entry format example: Aliases: outside the west tower, tower approach</small>
                     <textarea id="location_background_aliases_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
 
@@ -191,12 +209,6 @@
                     </label>
                     <textarea id="location_background_multihop_block" class="text_pole wide100p location-background-block-text"></textarea>
                 </div>
-
-                <div class="flex-container alignItemsCenter flexGap5 marginTop10">
-                    <label for="location_background_prompt_depth">Prompt depth</label>
-                    <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
-                </div>
-                <small>Controls where SillyTavern places this extension prompt in the final prompt stack.</small>
 
                 <div id="location_background_prompt_preview_block" class="marginTop10">
                     <h4>Prompt Preview</h4>

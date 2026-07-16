@@ -13,18 +13,29 @@ const LEGACY_LOCATION_PROMPT = [
     'Location: Exact Location Node Name',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
-const DEFAULT_LOCATION_PROMPT = [
+const LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT = [
     'Choose the current location from the selected lorebook location entries only.',
     'Never invent new location names.',
     'End every narrator reply with:',
     'Location: Exact Location Node Name',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
+const DEFAULT_LOCATION_PROMPT = [
+    'Choose the current location from the selected lorebook location entries only.',
+    'Never invent new location names.',
+    'End every narrator reply with:',
+    'Location: Exact Location Node Name',
+    'Choose exactly one existing location name from the locations above.',
+    'If the scene changed, output the new exact node name.',
+    'If not, repeat the same current location.',
+    'Use aliases to convert scene wording to the exact location node name.',
+    'If uncertain, keep the previous exact location.',
+].join('\n');
 const DEFAULT_CURRENT_LOCATION_BLOCK = [
     'Current scene context:',
     '- Current location: {{currentLocation}}',
 ].join('\n');
-const DEFAULT_CONNECTED_LOCATIONS_BLOCK = [
+const LEGACY_CONNECTED_LOCATIONS_BLOCK = [
     'Use connected locations as the preferred next choices from the current node.',
     'Connected locations:',
     '{{connectedLocations}}',
@@ -34,7 +45,12 @@ const DEFAULT_CONNECTED_LOCATIONS_BLOCK = [
     '- West Tower Forest',
     '- West Tower Observation Deck',
 ].join('\n');
-const DEFAULT_ALIASES_BLOCK = [
+const DEFAULT_CONNECTED_LOCATIONS_BLOCK = [
+    'Use connected locations as the preferred next choices from the current node.',
+    'Connected locations:',
+    '{{connectedLocations}}',
+].join('\n');
+const LEGACY_ALIASES_BLOCK = [
     'Use aliases to convert scene wording to the exact location node name.',
     'Aliases:',
     '{{aliases}}',
@@ -43,6 +59,10 @@ const DEFAULT_ALIASES_BLOCK = [
     'Aliases:',
     '- outside the west tower',
     '- tower approach',
+].join('\n');
+const DEFAULT_ALIASES_BLOCK = [
+    'Aliases:',
+    '{{aliases}}',
 ].join('\n');
 const DEFAULT_MULTI_HOP_BLOCK = [
     'If the scene clearly moves through multiple spaces in one reply, choose the final physically reached location, but only if it is reachable through valid nearby nodes.',
@@ -108,8 +128,16 @@ function getSettings() {
         settings.books = {};
     }
 
-    if (settings.locationPrompt === LEGACY_LOCATION_PROMPT) {
+    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT].includes(settings.locationPrompt)) {
         settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
+    }
+
+    if (settings.connectedLocationsBlock === LEGACY_CONNECTED_LOCATIONS_BLOCK) {
+        settings.connectedLocationsBlock = DEFAULT_CONNECTED_LOCATIONS_BLOCK;
+    }
+
+    if (settings.aliasesBlock === LEGACY_ALIASES_BLOCK) {
+        settings.aliasesBlock = DEFAULT_ALIASES_BLOCK;
     }
 
     return settings;

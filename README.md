@@ -54,6 +54,10 @@ Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
 Location: Exact Location Node Name
+Choose exactly one existing location name from the locations above.
+If the scene changed, output the new exact node name.
+If not, repeat the same current location.
+Use aliases to convert scene wording to the exact location node name.
 If uncertain, keep the previous exact location.
 ```
 
@@ -64,6 +68,10 @@ Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
 Location: Exact Location Node Name
+Choose exactly one existing location name from the locations above.
+If the scene changed, output the new exact node name.
+If not, repeat the same current location.
+Use aliases to convert scene wording to the exact location node name.
 If uncertain, keep the previous exact location.
 
 Current scene context:
