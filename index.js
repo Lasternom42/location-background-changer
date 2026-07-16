@@ -599,6 +599,12 @@ function extractLocationMarker(text) {
     return normalizeName(matches.at(-1)?.[1]?.replace(/^["'`]+|["'`]+$/g, ''));
 }
 
+function cleanLocationLine(value) {
+    return normalizeName(String(value ?? '')
+        .replace(/<!--|-->/g, '')
+        .replace(/^["'`]+|["'`.,;:!?]+$/g, ''));
+}
+
 function getLocationMatchKeys(value) {
     const normalized = normalizeName(value).toLowerCase();
     const wordsOnly = normalizeName(normalized
@@ -627,7 +633,7 @@ function hasSharedLocationKey(left, right) {
 function extractLocationLine(text) {
     const lines = String(text ?? '')
         .split(/\r?\n/)
-        .map((line) => normalizeName(line.replace(/<!--|-->/g, '').replace(/^["'`]+|["'`.,;:!?]+$/g, '')))
+        .map(cleanLocationLine)
         .filter(Boolean);
 
     for (const line of lines.slice(-6).reverse()) {
@@ -637,6 +643,23 @@ function extractLocationLine(text) {
 
         if (findMappingByLocationName(line)) {
             return line;
+        }
+    }
+
+    return '';
+}
+
+function extractLocationDeclaration(text) {
+    const lines = String(text ?? '')
+        .split(/\r?\n/)
+        .map(cleanLocationLine)
+        .filter(Boolean);
+
+    for (const line of lines.slice(-8).reverse()) {
+        const match = line.match(/^(?:current\s+)?location\s*[:=-]\s*(.+)$/i);
+        const locationName = cleanLocationLine(match?.[1] || '');
+        if (!isIgnoredLocationMarker(locationName)) {
+            return locationName;
         }
     }
 
@@ -719,7 +742,7 @@ async function processLocationMarkerText(text) {
         return false;
     }
 
-    const locationName = extractLocationMarker(text) || extractLocationLine(text);
+    const locationName = extractLocationMarker(text) || extractLocationDeclaration(text) || extractLocationLine(text);
     if (isIgnoredLocationMarker(locationName)) {
         return false;
     }

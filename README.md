@@ -44,6 +44,12 @@ The location name must match one of the entries you added under `Locations`.
 If no marker is present, the extension also checks the last few lines for a configured location name. This supports narrator endings like:
 
 ```text
+Location: West Tower Entrance
+```
+
+or:
+
+```text
 West Tower - Observation Deck
 ```
 
@@ -56,6 +62,6 @@ locationBackgroundManager.reload()
 locationBackgroundManager.selectWorld("West Tower")
 locationBackgroundManager.setMarkerDetection(true)
 locationBackgroundManager.setLorebookActivation(false)
-locationBackgroundManager.testText("West Tower - Observation Deck")
+locationBackgroundManager.testText("Location: West Tower Entrance")
 locationBackgroundManager.getState()
 ```
