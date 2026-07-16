@@ -13,6 +13,34 @@ const DEFAULT_LOCATION_PROMPT = [
     'Location: Exact Location Node Name',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
+const DEFAULT_CURRENT_LOCATION_BLOCK = [
+    'Current scene context:',
+    '- Current location: {{currentLocation}}',
+].join('\n');
+const DEFAULT_CONNECTED_LOCATIONS_BLOCK = [
+    'Use connected locations as the preferred next choices from the current node.',
+    'Connected locations:',
+    '{{connectedLocations}}',
+    '',
+    'Lorebook entry format example:',
+    'Connected locations:',
+    '- West Tower Forest',
+    '- West Tower Observation Deck',
+].join('\n');
+const DEFAULT_ALIASES_BLOCK = [
+    'Use aliases to convert scene wording to the exact location node name.',
+    'Aliases:',
+    '{{aliases}}',
+    '',
+    'Lorebook entry format example:',
+    'Aliases:',
+    '- outside the west tower',
+    '- tower approach',
+].join('\n');
+const DEFAULT_MULTI_HOP_BLOCK = [
+    'If the scene clearly moves through multiple spaces in one reply, choose the final physically reached location, but only if it is reachable through valid nearby nodes.',
+    'If not sure, keep the current location.',
+].join('\n');
 
 const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
@@ -22,10 +50,13 @@ const DEFAULT_SETTINGS = Object.freeze({
     useLorebookActivation: false,
     promptInjector: true,
     locationPrompt: DEFAULT_LOCATION_PROMPT,
-    includeCurrentLocation: true,
+    currentLocationBlock: DEFAULT_CURRENT_LOCATION_BLOCK,
     includeConnectedLocations: true,
+    connectedLocationsBlock: DEFAULT_CONNECTED_LOCATIONS_BLOCK,
     includeAliases: false,
+    aliasesBlock: DEFAULT_ALIASES_BLOCK,
     allowMultiHop: false,
+    multiHopBlock: DEFAULT_MULTI_HOP_BLOCK,
     maxPromptLocations: 12,
     promptDepth: 0,
     currentLocation: '',
@@ -421,10 +452,13 @@ function refreshSettingsUI() {
     $('#location_background_debug_info').toggle(!!settings.debug);
     $('#location_background_prompt_injector').prop('checked', !!settings.promptInjector);
     $('#location_background_prompt_text').val(String(settings.locationPrompt ?? DEFAULT_LOCATION_PROMPT));
-    $('#location_background_include_current').prop('checked', !!settings.includeCurrentLocation);
+    $('#location_background_current_block').val(String(settings.currentLocationBlock ?? DEFAULT_CURRENT_LOCATION_BLOCK));
     $('#location_background_include_connected').prop('checked', !!settings.includeConnectedLocations);
+    $('#location_background_connected_block').val(String(settings.connectedLocationsBlock ?? DEFAULT_CONNECTED_LOCATIONS_BLOCK));
     $('#location_background_include_aliases').prop('checked', !!settings.includeAliases);
+    $('#location_background_aliases_block').val(String(settings.aliasesBlock ?? DEFAULT_ALIASES_BLOCK));
     $('#location_background_allow_multihop').prop('checked', !!settings.allowMultiHop);
+    $('#location_background_multihop_block').val(String(settings.multiHopBlock ?? DEFAULT_MULTI_HOP_BLOCK));
     $('#location_background_max_locations').val(String(clampNumber(settings.maxPromptLocations, 1, 50, DEFAULT_SETTINGS.maxPromptLocations)));
     $('#location_background_prompt_depth').val(String(clampNumber(settings.promptDepth, 0, 10, DEFAULT_SETTINGS.promptDepth)));
     $('#location_background_world').val(selectedWorld);
@@ -585,10 +619,28 @@ function bindSettingsEvents() {
         refreshPromptInjection();
     });
 
-    $('#location_background_include_current').on('change', function () {
-        getSettings().includeCurrentLocation = !!$(this).prop('checked');
+    $('#location_background_current_block').on('input change', function () {
+        getSettings().currentLocationBlock = String($(this).val() ?? '');
         saveSettings();
-        refreshSettingsUI();
+        refreshPromptInjection();
+    });
+
+    $('#location_background_connected_block').on('input change', function () {
+        getSettings().connectedLocationsBlock = String($(this).val() ?? '');
+        saveSettings();
+        refreshPromptInjection();
+    });
+
+    $('#location_background_aliases_block').on('input change', function () {
+        getSettings().aliasesBlock = String($(this).val() ?? '');
+        saveSettings();
+        refreshPromptInjection();
+    });
+
+    $('#location_background_multihop_block').on('input change', function () {
+        getSettings().multiHopBlock = String($(this).val() ?? '');
+        saveSettings();
+        refreshPromptInjection();
     });
 
     $('#location_background_include_connected').on('change', function () {
@@ -784,11 +836,23 @@ function getConnectedPromptLocations(currentLocation, locations) {
         .filter((location, index, list) => list.findIndex((item) => item.uid === location.uid) === index);
 }
 
-function formatPromptLocation(location, includeAliases = false) {
-    const aliasText = includeAliases && location.aliases.length
-        ? ` (aliases: ${location.aliases.join(', ')})`
-        : '';
-    return `- ${location.label}${aliasText}`;
+function renderPromptLocationList(locations) {
+    return locations.map((location) => `- ${location.label}`).join('\n');
+}
+
+function renderPromptAliasList(locations) {
+    return locations
+        .filter((location) => location.aliases.length)
+        .map((location) => `- ${location.label}: ${location.aliases.join(', ')}`)
+        .join('\n');
+}
+
+function applyPromptTemplate(template, values) {
+    return String(template ?? '')
+        .replace(/\{\{currentLocation\}\}/g, values.currentLocation || 'Unknown')
+        .replace(/\{\{connectedLocations\}\}/g, values.connectedLocations || '- None configured')
+        .replace(/\{\{aliases\}\}/g, values.aliases || '- None configured')
+        .trim();
 }
 
 function buildLocationPrompt() {
@@ -802,28 +866,39 @@ function buildLocationPrompt() {
     const maxLocations = clampNumber(settings.maxPromptLocations, 1, 50, DEFAULT_SETTINGS.maxPromptLocations);
     const currentLocation = findPromptLocationByName(getCurrentLocationName(), locations);
     const promptLines = [basePrompt];
+    let candidateLocations = [];
 
-    if (settings.includeCurrentLocation && currentLocation) {
-        promptLines.push('', 'Current scene context:', `- Current location: ${currentLocation.label}`);
+    if (currentLocation) {
+        promptLines.push('', applyPromptTemplate(settings.currentLocationBlock ?? DEFAULT_CURRENT_LOCATION_BLOCK, {
+            currentLocation: currentLocation.label,
+        }));
     }
 
     if (settings.includeConnectedLocations && currentLocation) {
-        const connectedLocations = getConnectedPromptLocations(currentLocation, locations).slice(0, maxLocations);
-        if (connectedLocations.length) {
-            promptLines.push('', 'Connected locations:');
-            promptLines.push(...connectedLocations.map((location) => formatPromptLocation(location, settings.includeAliases)));
+        candidateLocations = getConnectedPromptLocations(currentLocation, locations).slice(0, maxLocations);
+        if (candidateLocations.length) {
+            promptLines.push('', applyPromptTemplate(settings.connectedLocationsBlock ?? DEFAULT_CONNECTED_LOCATIONS_BLOCK, {
+                connectedLocations: renderPromptLocationList(candidateLocations),
+            }));
         }
     } else if (!currentLocation && locations.length) {
+        candidateLocations = locations.slice(0, maxLocations);
         promptLines.push('', 'Location choices:');
-        promptLines.push(...locations.slice(0, maxLocations).map((location) => formatPromptLocation(location, settings.includeAliases)));
+        promptLines.push(renderPromptLocationList(candidateLocations));
+    }
+
+    if (settings.includeAliases) {
+        const aliasLocations = [currentLocation, ...candidateLocations].filter(Boolean);
+        const aliases = renderPromptAliasList(aliasLocations);
+        if (aliases) {
+            promptLines.push('', applyPromptTemplate(settings.aliasesBlock ?? DEFAULT_ALIASES_BLOCK, {
+                aliases,
+            }));
+        }
     }
 
     if (settings.allowMultiHop) {
-        promptLines.push(
-            '',
-            'If the scene clearly moves through multiple spaces in one reply, choose the final physically reached location only when it is reachable through the location graph.',
-            'If not sure, keep the current location.',
-        );
+        promptLines.push('', String(settings.multiHopBlock ?? DEFAULT_MULTI_HOP_BLOCK).trim());
     }
 
     return promptLines.join('\n');

@@ -34,12 +34,15 @@ Settings:
 
 - `Use prompt injector`: Enables or disables prompt injection.
 - `Location prompt`: The editable base instruction sent before generation.
-- `Include current location`: Adds the last applied location as scene context.
-- `Include connected locations`: Adds connected nodes from the current location entry.
-- `Include aliases`: Adds compact alias hints from entry keys and `Aliases:` sections.
-- `Allow multi-hop location changes`: Adds guidance for movement across multiple connected nodes in one reply.
-- `Max locations`: Limits how many generated location choices are injected.
-- `Prompt depth`: Passed to SillyTavern's extension prompt hook.
+- `Current location block`: Always added when a current location is known. Supports `{{currentLocation}}`.
+- `Include connected locations`: Enables the connected locations block. Supports `{{connectedLocations}}`.
+- `Connected locations block`: Editable prompt text for nearby node choices and lorebook format guidance.
+- `Include aliases`: Enables the aliases block. Supports `{{aliases}}`.
+- `Aliases block`: Editable prompt text for alias handling and lorebook format guidance.
+- `Allow multi-hop location changes`: Enables the multi-hop block.
+- `Multi-hop block`: Editable prompt text for movement through multiple connected spaces.
+- `Max locations`: Limits how many generated location choices are injected, keeping the prompt compact.
+- `Prompt depth`: Passed to SillyTavern's extension prompt hook to control where this prompt is inserted.
 - `Prompt Preview`: Visible when `Debug` is enabled and shows the final injected text.
 
 Default base prompt:
@@ -67,6 +70,14 @@ Current scene context:
 Connected locations:
 - West Tower Forest
 - West Tower Observation Deck
+```
+
+Editable block placeholders:
+
+```text
+{{currentLocation}}
+{{connectedLocations}}
+{{aliases}}
 ```
 
 Optional lorebook entry sections:

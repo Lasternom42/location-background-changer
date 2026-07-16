@@ -48,8 +48,18 @@
             white-space: pre-wrap;
         }
 
+        #location_background_settings .location-background-block-text {
+            min-height: 6em;
+            resize: vertical;
+            white-space: pre-wrap;
+        }
+
         #location_background_settings .location-background-number {
             width: 5em;
+        }
+
+        #location_background_settings .location-background-field {
+            margin-top: 10px;
         }
     </style>
     <div class="inline-drawer">
@@ -117,12 +127,12 @@
 
                 <textarea id="location_background_prompt_text" class="text_pole wide100p location-background-prompt-text"></textarea>
 
-                <div class="location-background-prompt-grid marginTop10">
-                    <label class="checkbox_label" for="location_background_include_current">
-                        <input id="location_background_include_current" type="checkbox">
-                        <span>Include current location</span>
-                    </label>
+                <div class="location-background-field">
+                    <h5>Current location block</h5>
+                    <textarea id="location_background_current_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
 
+                <div class="location-background-prompt-grid marginTop10">
                     <label class="checkbox_label" for="location_background_include_connected">
                         <input id="location_background_include_connected" type="checkbox">
                         <span>Include connected locations</span>
@@ -139,14 +149,31 @@
                     </label>
                 </div>
 
+                <div class="location-background-field">
+                    <h5>Connected locations block</h5>
+                    <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
+
+                <div class="location-background-field">
+                    <h5>Aliases block</h5>
+                    <textarea id="location_background_aliases_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
+
+                <div class="location-background-field">
+                    <h5>Multi-hop block</h5>
+                    <textarea id="location_background_multihop_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
+
                 <div class="flex-container alignItemsCenter flexGap5 marginTop10">
                     <label for="location_background_max_locations">Max locations</label>
                     <input id="location_background_max_locations" class="text_pole location-background-number" type="number" min="1" max="50" step="1">
                     <label for="location_background_prompt_depth">Prompt depth</label>
                     <input id="location_background_prompt_depth" class="text_pole location-background-number" type="number" min="0" max="10" step="1">
                 </div>
+                <small>Max locations limits how many generated choices are injected. Prompt depth controls where SillyTavern places this extension prompt.</small>
             </div>
 
+            <h4 class="marginTop10">Location Entries</h4>
             <table class="location-background-list wide100p marginTop10">
                 <colgroup>
                     <col>
