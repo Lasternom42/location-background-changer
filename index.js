@@ -51,6 +51,7 @@ const DEFAULT_LOCATION_PROMPT = [
     'Never invent new location names.',
     'End every narrator reply with:',
     '{{locationLine}}',
+    'Write exactly one location line and no more.',
     'Choose exactly one existing location name from the locations above.',
     'If the scene changed, output the new exact node name.',
     'If not, repeat the same current location.',
@@ -130,6 +131,7 @@ let availableWorldNames = [];
 let lastAppliedSignature = '';
 let lastAppliedDetail = null;
 let lastStatusMessage = 'Starting...';
+let lastProcessedLocationSignature = '';
 
 function getSillyTavernContext() {
     return getContext?.() ?? globalThis.SillyTavern?.getContext?.();
@@ -514,12 +516,15 @@ function renderLocationsList() {
 function refreshSettingsUI() {
     const settings = getSettings();
     const selectedWorld = getSelectedWorldName();
-    const promptEnabled = !!settings.promptInjector;
+    const programEnabled = !!settings.enabled;
+    const promptEnabled = programEnabled && !!settings.promptInjector;
 
     $('#location_background_enabled').prop('checked', !!settings.enabled);
     $('#location_background_show_toasts').prop('checked', !!settings.showToasts);
     $('#location_background_debug').prop('checked', !!settings.debug);
     $('#location_background_debug_info').toggle(!!settings.debug);
+    $('#location_background_main_controls').toggleClass('location-background-disabled', !programEnabled);
+    $('#location_background_main_controls').find('input, select, textarea, button').prop('disabled', !programEnabled);
     $('#location_background_prompt_injector').prop('checked', !!settings.promptInjector);
     $('#location_background_prompt_text').val(String(settings.locationPrompt ?? DEFAULT_LOCATION_PROMPT));
     $('#location_background_line_format').val(Object.values(LOCATION_LINE_FORMATS).includes(settings.locationLineFormat)
@@ -1193,6 +1198,20 @@ function extractMessageTextFromEventArgs(args) {
     return context?.chat?.at?.(-1)?.mes || '';
 }
 
+function extractMessageSignatureFromEventArgs(args) {
+    for (const value of args) {
+        if (value && typeof value === 'object') {
+            const signature = value.id ?? value.uid ?? value.message_id ?? value.messageId ?? value.mesId ?? value.mes_id;
+            if (signature !== undefined && signature !== null && String(signature).trim()) {
+                return String(signature);
+            }
+        }
+    }
+
+    const text = extractMessageTextFromEventArgs(args);
+    return normalizeName(text);
+}
+
 async function processLocationMarkerText(text) {
     const settings = getSettings();
     if (!settings.enabled || !settings.markerDetection || !activeWorldName) {
@@ -1225,7 +1244,15 @@ async function processLocationMarkerText(text) {
 
 async function onChatMessageForLocationMarker(...args) {
     try {
-        await processLocationMarkerText(extractMessageTextFromEventArgs(args));
+        const signature = extractMessageSignatureFromEventArgs(args);
+        if (!signature || signature === lastProcessedLocationSignature) {
+            return;
+        }
+
+        const processed = await processLocationMarkerText(extractMessageTextFromEventArgs(args));
+        if (processed) {
+            lastProcessedLocationSignature = signature;
+        }
     } catch (error) {
         warn(`Could not process location marker: ${error.message}`, error);
     }
@@ -1438,6 +1465,7 @@ async function initialize() {
         }
         if (eventTypes?.CHAT_CHANGED) {
             eventSource.on(eventTypes.CHAT_CHANGED, async () => {
+                lastProcessedLocationSignature = '';
                 const settings = getSettings();
                 if (!settings.selectedWorld && availableWorldNames.length) {
                     settings.selectedWorld = availableWorldNames[0];
