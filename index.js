@@ -523,6 +523,8 @@ function refreshSettingsUI() {
     $('#location_background_show_toasts').prop('checked', !!settings.showToasts);
     $('#location_background_debug').prop('checked', !!settings.debug);
     $('#location_background_debug_info').toggle(!!settings.debug);
+    $('#location_background_top_controls').toggleClass('location-background-disabled', !programEnabled);
+    $('#location_background_top_controls').find('input, select, textarea, button').prop('disabled', !programEnabled);
     $('#location_background_main_controls').toggleClass('location-background-disabled', !programEnabled);
     $('#location_background_main_controls').find('input, select, textarea, button').prop('disabled', !programEnabled);
     $('#location_background_prompt_injector').prop('checked', !!settings.promptInjector);
@@ -1044,7 +1046,7 @@ function refreshPromptInjection() {
     $('#location_background_prompt_preview').val(prompt);
     $('#location_background_prompt_preview_block').toggle(!!settings.debug);
 
-    if (!settings.promptInjector || !prompt) {
+    if (!settings.enabled || !settings.promptInjector || !prompt) {
         setLocationExtensionPrompt('');
         return;
     }
