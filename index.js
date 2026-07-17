@@ -684,6 +684,7 @@ function bindSettingsEvents() {
     $('#location_background_enabled').on('change', function () {
         getSettings().enabled = !!$(this).prop('checked');
         saveSettings();
+        refreshSettingsUI();
     });
 
     $('#location_background_show_toasts').on('change', function () {
