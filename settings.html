@@ -180,10 +180,13 @@
 
                 <div id="location_background_prompt_controls">
                 <div class="flex-container alignItemsCenter flexGap5 marginTop10">
-                    <label for="location_background_prompt_depth">Prompt depth</label>
-                    <input id="location_background_prompt_depth" class="text_pole location-background-number location-background-prompt-control" type="number" min="0" max="10" step="1">
+                    <label for="location_background_line_format">Location line format</label>
+                    <select id="location_background_line_format" class="text_pole location-background-prompt-control">
+                        <option value="visible">Visible</option>
+                        <option value="hidden">Hidden HTML comment</option>
+                    </select>
                 </div>
-                <small>Controls where SillyTavern places this extension prompt in the final prompt stack.</small>
+                <small>Controls how the narrator writes the final location line in chat.</small>
 
                 <textarea id="location_background_prompt_text" class="text_pole wide100p location-background-prompt-text"></textarea>
 

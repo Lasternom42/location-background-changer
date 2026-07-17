@@ -33,6 +33,7 @@ The prompt injector is extension-driven. It uses the selected lorebook and only 
 Settings:
 
 - `Use prompt injector`: Enables or disables prompt injection.
+- `Location line format`: Selects visible `Location: ...` output or hidden HTML comment output.
 - `Location prompt`: The editable base instruction sent before generation.
 - `Current location block`: Always added when a current location is known. Supports `{{currentLocation}}`.
 - `Include connected locations`: Enables the connected locations block and its `Max locations` limit. Supports `{{connectedLocations}}`.
@@ -42,7 +43,6 @@ Settings:
 - `Allow multi-hop location changes`: Enables the multi-hop block.
 - `Multi-hop block`: Editable prompt text for movement through multiple connected spaces.
 - `Max locations`: Limits how many connected-location choices are injected, keeping the prompt compact.
-- `Prompt depth`: Passed to SillyTavern's extension prompt hook. It controls where this extension prompt is placed in the final prompt stack; `0` is the safest default.
 - `Prompt Preview`: Visible when `Debug` is enabled and shows the final injected text.
 
 Disabled prompt options grey out their text block but keep the custom text saved.
@@ -54,7 +54,7 @@ Default base prompt:
 Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
-Location: Exact Location Node Name
+{{locationLine}}
 Choose exactly one existing location name from the locations above.
 If the scene changed, output the new exact node name.
 If not, repeat the same current location.
@@ -87,6 +87,7 @@ Editable block placeholders:
 {{currentLocation}}
 {{connectedLocations}}
 {{aliases}}
+{{locationLine}}
 ```
 
 Optional lorebook entry sections:

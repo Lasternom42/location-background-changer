@@ -6,6 +6,11 @@ const MODULE_LABEL = 'Location Background Manager';
 const SETTINGS_URL = new URL('./settings.html', import.meta.url);
 const LOCATION_CHANGED_EVENT = 'location-background:changed';
 const IGNORED_LOCATION_MARKERS = new Set(['none', 'unknown', 'same', 'unchanged', 'no change', 'n/a', 'null']);
+const PROMPT_INJECTION_DEPTH = 0;
+const LOCATION_LINE_FORMATS = Object.freeze({
+    visible: 'visible',
+    hidden: 'hidden',
+});
 const LEGACY_LOCATION_PROMPT = [
     'Choose the current location from the location graph only.',
     'Never invent new location names.',
@@ -31,11 +36,21 @@ const LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE = [
     'Use aliases to convert scene wording to the exact location node name.',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
-const DEFAULT_LOCATION_PROMPT = [
+const LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES = [
     'Choose the current location from the selected lorebook location entries only.',
     'Never invent new location names.',
     'End every narrator reply with:',
     'Location: Exact Location Node Name',
+    'Choose exactly one existing location name from the locations above.',
+    'If the scene changed, output the new exact node name.',
+    'If not, repeat the same current location.',
+    'If uncertain, keep the previous exact location.',
+].join('\n');
+const DEFAULT_LOCATION_PROMPT = [
+    'Choose the current location from the selected lorebook location entries only.',
+    'Never invent new location names.',
+    'End every narrator reply with:',
+    '{{locationLine}}',
     'Choose exactly one existing location name from the locations above.',
     'If the scene changed, output the new exact node name.',
     'If not, repeat the same current location.',
@@ -99,8 +114,8 @@ const DEFAULT_SETTINGS = Object.freeze({
     aliasesBlock: DEFAULT_ALIASES_BLOCK,
     allowMultiHop: false,
     multiHopBlock: DEFAULT_MULTI_HOP_BLOCK,
+    locationLineFormat: LOCATION_LINE_FORMATS.visible,
     maxPromptLocations: 12,
-    promptDepth: 0,
     currentLocation: '',
     selectedWorld: '',
     books: {},
@@ -143,7 +158,7 @@ function getSettings() {
         settings.books = {};
     }
 
-    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE].includes(settings.locationPrompt)) {
+    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE, LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES].includes(settings.locationPrompt)) {
         settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
     }
 
@@ -507,6 +522,9 @@ function refreshSettingsUI() {
     $('#location_background_debug_info').toggle(!!settings.debug);
     $('#location_background_prompt_injector').prop('checked', !!settings.promptInjector);
     $('#location_background_prompt_text').val(String(settings.locationPrompt ?? DEFAULT_LOCATION_PROMPT));
+    $('#location_background_line_format').val(Object.values(LOCATION_LINE_FORMATS).includes(settings.locationLineFormat)
+        ? settings.locationLineFormat
+        : LOCATION_LINE_FORMATS.visible);
     $('#location_background_current_block').val(String(settings.currentLocationBlock ?? DEFAULT_CURRENT_LOCATION_BLOCK));
     $('#location_background_include_connected').prop('checked', !!settings.includeConnectedLocations);
     $('#location_background_connected_block').val(String(settings.connectedLocationsBlock ?? DEFAULT_CONNECTED_LOCATIONS_BLOCK));
@@ -516,8 +534,8 @@ function refreshSettingsUI() {
     $('#location_background_multihop_block').val(String(settings.multiHopBlock ?? DEFAULT_MULTI_HOP_BLOCK));
     $('#location_background_prompt_controls').toggleClass('location-background-disabled', !promptEnabled);
     $('#location_background_prompt_text').prop('disabled', !promptEnabled);
+    $('#location_background_line_format').prop('disabled', !promptEnabled);
     $('#location_background_current_block').prop('disabled', !promptEnabled);
-    $('#location_background_prompt_depth').prop('disabled', !promptEnabled);
     $('#location_background_include_connected').prop('disabled', !promptEnabled);
     $('#location_background_include_aliases').prop('disabled', !promptEnabled);
     $('#location_background_allow_multihop').prop('disabled', !promptEnabled);
@@ -526,7 +544,6 @@ function refreshSettingsUI() {
     $('#location_background_multihop_block').prop('disabled', !promptEnabled || !settings.allowMultiHop);
     $('#location_background_max_locations').prop('disabled', !promptEnabled || !settings.includeConnectedLocations);
     $('#location_background_max_locations').val(String(clampNumber(settings.maxPromptLocations, 1, 50, DEFAULT_SETTINGS.maxPromptLocations)));
-    $('#location_background_prompt_depth').val(String(clampNumber(settings.promptDepth, 0, 10, DEFAULT_SETTINGS.promptDepth)));
     $('#location_background_world').val(selectedWorld);
     $('#location_background_world_count').text(String(availableWorldNames.length));
     $('#location_background_selected_world').text(selectedWorld || 'None');
@@ -685,6 +702,15 @@ function bindSettingsEvents() {
         refreshPromptInjection();
     });
 
+    $('#location_background_line_format').on('change', function () {
+        const value = String($(this).val() ?? LOCATION_LINE_FORMATS.visible);
+        getSettings().locationLineFormat = Object.values(LOCATION_LINE_FORMATS).includes(value)
+            ? value
+            : LOCATION_LINE_FORMATS.visible;
+        saveSettings();
+        refreshSettingsUI();
+    });
+
     $('#location_background_current_block').on('input change', function () {
         getSettings().currentLocationBlock = String($(this).val() ?? '');
         saveSettings();
@@ -729,12 +755,6 @@ function bindSettingsEvents() {
 
     $('#location_background_max_locations').on('change', function () {
         getSettings().maxPromptLocations = clampNumber($(this).val(), 1, 50, DEFAULT_SETTINGS.maxPromptLocations);
-        saveSettings();
-        refreshSettingsUI();
-    });
-
-    $('#location_background_prompt_depth').on('change', function () {
-        getSettings().promptDepth = clampNumber($(this).val(), 0, 10, DEFAULT_SETTINGS.promptDepth);
         saveSettings();
         refreshSettingsUI();
     });
@@ -913,17 +933,26 @@ function renderPromptAliasList(locations) {
         .join('\n');
 }
 
+function getLocationLineInstruction() {
+    return getSettings().locationLineFormat === LOCATION_LINE_FORMATS.hidden
+        ? '<!-- Location: Exact Location Node Name -->'
+        : 'Location: Exact Location Node Name';
+}
+
 function applyPromptTemplate(template, values) {
     return String(template ?? '')
         .replace(/\{\{currentLocation\}\}/g, values.currentLocation || 'Unknown')
         .replace(/\{\{connectedLocations\}\}/g, values.connectedLocations || '- None configured')
         .replace(/\{\{aliases\}\}/g, values.aliases || '- None configured')
+        .replace(/\{\{locationLine\}\}/g, values.locationLine || getLocationLineInstruction())
         .trim();
 }
 
 function buildLocationPrompt() {
     const settings = getSettings();
-    const basePrompt = String(settings.locationPrompt ?? DEFAULT_LOCATION_PROMPT).trim();
+    const basePrompt = applyPromptTemplate(settings.locationPrompt ?? DEFAULT_LOCATION_PROMPT, {
+        locationLine: getLocationLineInstruction(),
+    });
     if (!basePrompt) {
         return '';
     }
@@ -993,10 +1022,9 @@ function setLocationExtensionPrompt(prompt) {
 
     const promptType = tools.promptTypes.IN_PROMPT ?? 0;
     const promptRole = tools.promptRoles.SYSTEM ?? 0;
-    const depth = clampNumber(settings.promptDepth, 0, 10, DEFAULT_SETTINGS.promptDepth);
 
     try {
-        tools.setExtensionPrompt.call(tools.context ?? globalThis, MODULE_NAME, prompt, promptType, depth, false, promptRole);
+        tools.setExtensionPrompt.call(tools.context ?? globalThis, MODULE_NAME, prompt, promptType, PROMPT_INJECTION_DEPTH, false, promptRole);
         return true;
     } catch (error) {
         warn(`Could not set extension prompt: ${error.message}`, error);
