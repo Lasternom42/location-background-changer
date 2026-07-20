@@ -55,7 +55,7 @@ Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
 {{locationLine}}
-Choose exactly one existing location name from the locations above.
+Choose exactly one existing location name listed in this instruction.
 If the scene changed, output the new exact node name.
 If not, repeat the same current location.
 If uncertain, keep the previous exact location.
@@ -68,7 +68,7 @@ Choose the current location from the selected lorebook location entries only.
 Never invent new location names.
 End every narrator reply with:
 Location: Exact Location Node Name
-Choose exactly one existing location name from the locations above.
+Choose exactly one existing location name listed in this instruction.
 If the scene changed, output the new exact node name.
 If not, repeat the same current location.
 If uncertain, keep the previous exact location.
@@ -104,7 +104,7 @@ Connected locations:
 
 ## Runtime
 
-The selected `background` is applied directly with `/bg`. By default, the extension only switches when it sees an explicit location marker such as `[LBM_LOCATION: West Tower]`. This prevents normal mentions of a location from changing the background. The extension also emits a `location-background:changed` browser event so later music, weather, or ambient effects can be added without changing the basic structure again.
+The selected `background` is applied with `/bg`, with a UI fallback for compatible SillyTavern versions. The current location is stored separately for each chat and lorebook. The extension prefers an explicit marker or `Location:` declaration and also emits a `location-background:changed` browser event after a successful change.
 
 ## Location Marker
 
@@ -138,7 +138,6 @@ In the browser console:
 locationBackgroundManager.reload()
 locationBackgroundManager.selectWorld("West Tower")
 locationBackgroundManager.setMarkerDetection(true)
-locationBackgroundManager.setLorebookActivation(false)
 locationBackgroundManager.testText("Location: West Tower Entrance")
 locationBackgroundManager.getPrompt()
 locationBackgroundManager.refreshPrompt()

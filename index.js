@@ -52,7 +52,7 @@ const DEFAULT_LOCATION_PROMPT = [
     'End every narrator reply with:',
     '{{locationLine}}',
     'Write exactly one location line and no more.',
-    'Choose exactly one existing location name from the locations above.',
+    'Choose exactly one existing location name listed in this instruction.',
     'If the scene changed, output the new exact node name.',
     'If not, repeat the same current location.',
     'If uncertain, keep the previous exact location.',
@@ -105,7 +105,6 @@ const DEFAULT_SETTINGS = Object.freeze({
     showToasts: false,
     debug: false,
     markerDetection: true,
-    useLorebookActivation: false,
     promptInjector: true,
     locationPrompt: DEFAULT_LOCATION_PROMPT,
     currentLocationBlock: DEFAULT_CURRENT_LOCATION_BLOCK,
@@ -117,7 +116,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     multiHopBlock: DEFAULT_MULTI_HOP_BLOCK,
     locationLineFormat: LOCATION_LINE_FORMATS.visible,
     maxPromptLocations: 12,
-    currentLocation: '',
+    chatLocations: {},
     selectedWorld: '',
     books: {},
 });
@@ -128,13 +127,30 @@ let settingsRendered = false;
 let activeWorldName = '';
 let activeWorldData = null;
 let availableWorldNames = [];
-let lastAppliedSignature = '';
 let lastAppliedDetail = null;
 let lastStatusMessage = 'Starting...';
+let lastStatusIsError = false;
 let lastProcessedLocationSignature = '';
 
 function getSillyTavernContext() {
     return getContext?.() ?? globalThis.SillyTavern?.getContext?.();
+}
+
+function getChatLocationKey() {
+    const context = getSillyTavernContext();
+    const chatId = context?.chatId
+        ?? context?.chat_id
+        ?? context?.getCurrentChatId?.()
+        ?? context?.chatMetadata?.chat_id
+        ?? context?.chat?.[0]?.send_date
+        ?? context?.chat?.[0]?.mes
+        ?? 'no-chat';
+    return `${normalizeName(activeWorldName || getSettingsWithoutMigration()?.selectedWorld || 'no-world')}::${normalizeName(chatId)}`;
+}
+
+function getSettingsWithoutMigration() {
+    const value = extension_settings[MODULE_NAME];
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function getSillyTavernHeaders() {
@@ -158,6 +174,24 @@ function getSettings() {
 
     if (!settings.books || typeof settings.books !== 'object' || Array.isArray(settings.books)) {
         settings.books = {};
+    }
+
+    if (!settings.chatLocations || typeof settings.chatLocations !== 'object' || Array.isArray(settings.chatLocations)) {
+        settings.chatLocations = {};
+    }
+
+    // Migrate the old global location once, then keep all future state chat-scoped.
+    if (settings.currentLocation && !settings.chatLocations[getChatLocationKey()]) {
+        settings.chatLocations[getChatLocationKey()] = normalizeName(settings.currentLocation);
+    }
+    delete settings.currentLocation;
+    delete settings.useLorebookActivation;
+
+    for (const book of Object.values(settings.books)) {
+        for (const mapping of Object.values(book?.entries ?? {})) {
+            delete mapping.music;
+            delete mapping.weather;
+        }
     }
 
     if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE, LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES].includes(settings.locationPrompt)) {
@@ -289,7 +323,7 @@ function getAvailableBackgroundNames() {
     return [...names].sort((left, right) => left.localeCompare(right));
 }
 
-function setEntryMapping(worldName, entry, type, value) {
+function setEntryMapping(worldName, entry, value) {
     const book = getBookStore(worldName, true);
     if (!book || !entry) {
         return;
@@ -300,35 +334,22 @@ function setEntryMapping(worldName, entry, type, value) {
         book.entries[uid] = {
             label: getEntryLabel(entry),
             background: '',
-            music: '',
-            weather: '',
         };
     }
 
     book.entries[uid].label = getEntryLabel(entry);
-    book.entries[uid][type] = normalizeName(value);
+    book.entries[uid].background = normalizeName(value);
     saveSettings();
     refreshSettingsUI();
 }
 
-function removeEntryMapping(worldName, uid, type = null) {
+function removeEntryMapping(worldName, uid) {
     const book = getBookStore(worldName, false);
     if (!book || !book.entries?.[String(uid)]) {
         return;
     }
 
-    if (type) {
-        delete book.entries[String(uid)][type];
-    } else {
-        delete book.entries[String(uid)];
-    }
-
-    if (type && book.entries[String(uid)]) {
-        const mapping = book.entries[String(uid)];
-        if (!mapping.background && !mapping.music && !mapping.weather) {
-            delete book.entries[String(uid)];
-        }
-    }
+    delete book.entries[String(uid)];
 
     saveSettings();
     refreshSettingsUI();
@@ -336,6 +357,7 @@ function removeEntryMapping(worldName, uid, type = null) {
 
 function setStatus(message, isError = false) {
     lastStatusMessage = message;
+    lastStatusIsError = isError;
     const statusElement = $('#location_background_status');
     statusElement.text(message);
     statusElement.toggleClass('redWarning', isError);
@@ -556,6 +578,7 @@ function refreshSettingsUI() {
     $('#location_background_selected_world').text(selectedWorld || 'None');
     $('#location_background_entry_count').text(String(Object.keys(activeWorldData?.entries || {}).length));
     $('#location_background_status').text(lastStatusMessage);
+    $('#location_background_status').toggleClass('redWarning', lastStatusIsError);
     $('#location_background_last').text(lastAppliedDetail
         ? `${lastAppliedDetail.entryLabel} -> ${lastAppliedDetail.background || 'no background'}`
         : 'None yet');
@@ -628,8 +651,15 @@ async function loadSelectedWorld(worldName = getSelectedWorldName()) {
 
     try {
         activeWorldData = await fetchWorldBook(normalizedWorld);
-        setStatus(`Loaded lorebook "${normalizedWorld}" with ${Object.keys(activeWorldData?.entries || {}).length} entries.`);
+        const warnings = validateLocationConfiguration();
+        setStatus(warnings.length
+            ? `Loaded lorebook with ${warnings.length} configuration warning(s). See the browser console.`
+            : `Loaded lorebook "${normalizedWorld}" with ${Object.keys(activeWorldData?.entries || {}).length} entries.`, warnings.length > 0);
+        if (warnings.length) {
+            warn('Location configuration warnings:', warnings);
+        }
         refreshSettingsUI();
+        await restoreCurrentChatLocation();
     } catch (error) {
         activeWorldData = null;
         setStatus(error.message, true);
@@ -647,7 +677,7 @@ function onAddLocationClick() {
         return;
     }
 
-    setEntryMapping(activeWorldName, entry, 'background', '');
+    setEntryMapping(activeWorldName, entry, '');
     setStatus(`Added location "${getEntryLabel(entry)}".`);
 }
 
@@ -661,7 +691,7 @@ function onBackgroundSelectChange(event) {
         return;
     }
 
-    setEntryMapping(activeWorldName, entry, 'background', select.value);
+    setEntryMapping(activeWorldName, entry, select.value);
     setStatus(`Saved background for "${getEntryLabel(entry)}".`);
 }
 
@@ -676,7 +706,7 @@ function onRemoveEntryClick(event) {
 
     const entry = getEntryByUid(uid);
     const label = entry ? getEntryLabel(entry) : getBookStore(activeWorldName, false)?.entries?.[uid]?.label || 'location entry';
-    removeEntryMapping(activeWorldName, uid, null);
+    removeEntryMapping(activeWorldName, uid);
     setStatus(`Removed "${label}" from the manager.`);
 }
 
@@ -907,6 +937,42 @@ function getPromptLocationEntries() {
         .sort((left, right) => left.label.localeCompare(right.label));
 }
 
+function validateLocationConfiguration() {
+    const locations = getPromptLocationEntries();
+    const warnings = [];
+    const knownBackgrounds = new Set(Array.from(document.querySelectorAll('.bg_example'))
+        .map((node) => normalizeName(node.getAttribute('bgfile') || node.dataset?.bgfile))
+        .filter(Boolean));
+
+    for (const location of locations) {
+        if (knownBackgrounds.size && !knownBackgrounds.has(normalizeName(location.mapping.background))) {
+            warnings.push(`${location.label}: background "${location.mapping.background}" is not available`);
+        }
+        for (const connection of location.connections) {
+            const matches = locations.filter((candidate) => [candidate.label, ...candidate.aliases]
+                .some((name) => hasSharedLocationKey(name, connection)));
+            if (matches.length === 0) {
+                warnings.push(`${location.label}: connection "${connection}" does not match a managed location`);
+            } else if (matches.length > 1) {
+                warnings.push(`${location.label}: connection "${connection}" is ambiguous`);
+            }
+        }
+    }
+
+    for (let index = 0; index < locations.length; index++) {
+        for (let otherIndex = index + 1; otherIndex < locations.length; otherIndex++) {
+            const left = locations[index];
+            const right = locations[otherIndex];
+            if ([left.label, ...left.aliases].some((leftName) => [right.label, ...right.aliases]
+                .some((rightName) => hasSharedLocationKey(leftName, rightName)))) {
+                warnings.push(`${left.label} and ${right.label}: duplicate or ambiguous names/aliases`);
+            }
+        }
+    }
+
+    return [...new Set(warnings)];
+}
+
 function findPromptLocationByName(locationName, locations = getPromptLocationEntries()) {
     return locations.find((location) => {
         const names = [location.label, ...location.aliases];
@@ -916,7 +982,19 @@ function findPromptLocationByName(locationName, locations = getPromptLocationEnt
 
 function getCurrentLocationName() {
     const settings = getSettings();
-    return normalizeName(settings.currentLocation || lastAppliedDetail?.entryLabel || '');
+    return normalizeName(settings.chatLocations[getChatLocationKey()] || '');
+}
+
+function setCurrentLocationName(locationName) {
+    const settings = getSettings();
+    const key = getChatLocationKey();
+    const normalized = normalizeName(locationName);
+    if (normalized) {
+        settings.chatLocations[key] = normalized;
+    } else {
+        delete settings.chatLocations[key];
+    }
+    saveSettings();
 }
 
 function getConnectedPromptLocations(currentLocation, locations) {
@@ -1151,19 +1229,27 @@ function findMappingByLocationName(locationName) {
         return null;
     }
 
+    const matches = [];
     for (const [uid, mapping] of Object.entries(getCurrentWorldMappings())) {
         const names = getMappingLocationNames(uid, mapping);
         if (!names.some((name) => hasSharedLocationKey(name, target))) {
             continue;
         }
 
-        return {
+        matches.push({
             uid,
             entry: getEntryByUid(uid) ?? { uid, comment: mapping?.label || locationName },
             mapping,
-        };
+        });
     }
 
+    if (matches.length === 1) {
+        return matches[0];
+    }
+
+    if (matches.length > 1 && getSettings().debug) {
+        setStatus(`Location "${locationName}" is ambiguous (${matches.length} configured entries match).`, true);
+    }
     return null;
 }
 
@@ -1241,8 +1327,7 @@ async function processLocationMarkerText(text) {
         return false;
     }
 
-    await applyEntryMapping(match.entry, match.mapping);
-    return true;
+    return await applyEntryMapping(match.entry, match.mapping);
 }
 
 async function onChatMessageForLocationMarker(...args) {
@@ -1263,6 +1348,21 @@ async function onChatMessageForLocationMarker(...args) {
 
 async function processLatestChatMessageMarker() {
     await onChatMessageForLocationMarker();
+}
+
+async function restoreCurrentChatLocation() {
+    const locationName = getCurrentLocationName();
+    if (!locationName) {
+        return false;
+    }
+
+    const match = findMappingByLocationName(locationName);
+    if (!match?.mapping?.background) {
+        setCurrentLocationName('');
+        return false;
+    }
+
+    return await applyEntryMapping(match.entry, match.mapping);
 }
 
 function applyBackground(background) {
@@ -1314,22 +1414,13 @@ function emitLocationChanged(detail) {
 }
 
 async function applyEntryMapping(entry, mapping) {
-    const signature = JSON.stringify({
-        world: activeWorldName,
-        uid: entry.uid,
-        background: mapping.background || '',
-        music: mapping.music || '',
-        weather: mapping.weather || '',
-    });
-
-    if (signature === lastAppliedSignature) {
-        return;
-    }
-
     let applied = true;
     if (mapping.background) {
         try {
             applied = await applyBackground(mapping.background);
+            if (!applied) {
+                applied = applyBackgroundFallback(mapping.background);
+            }
         } catch (error) {
             warn(`Slash command /bg failed for "${mapping.background}". Trying fallback.`, error);
             applied = applyBackgroundFallback(mapping.background);
@@ -1338,22 +1429,18 @@ async function applyEntryMapping(entry, mapping) {
 
     if (!applied) {
         setStatus(`Could not apply background "${mapping.background}".`, true);
-        return;
+        return false;
     }
 
-    lastAppliedSignature = signature;
     const detail = {
         world: activeWorldName,
         entryUid: String(entry.uid),
         entryLabel: getEntryLabel(entry),
         background: mapping.background || null,
-        music: mapping.music || null,
-        weather: mapping.weather || null,
     };
 
     lastAppliedDetail = detail;
-    getSettings().currentLocation = detail.entryLabel;
-    saveSettings();
+    setCurrentLocationName(detail.entryLabel);
     emitLocationChanged(detail);
     setStatus(`Applied "${detail.entryLabel}" from "${activeWorldName}".`);
     $('#location_background_last').text(`${detail.entryLabel} -> ${detail.background || 'no background'}`);
@@ -1364,26 +1451,7 @@ async function applyEntryMapping(entry, mapping) {
     }
 
     log('Applied mapping', detail);
-}
-
-async function onWorldInfoActivated(entries) {
-    const settings = getSettings();
-    if (!settings.enabled || !settings.useLorebookActivation || !activeWorldName) {
-        return;
-    }
-
-    if (!Array.isArray(entries) || entries.length === 0) {
-        return;
-    }
-
-    const mappings = getCurrentWorldMappings();
-    for (const entry of entries) {
-        const mapping = mappings[String(entry?.uid)];
-        if (mapping && (mapping.background || mapping.music || mapping.weather)) {
-            await applyEntryMapping(entry, mapping);
-            return;
-        }
-    }
+    return true;
 }
 
 function registerDebugApi() {
@@ -1394,24 +1462,18 @@ function registerDebugApi() {
         selectWorld: async (worldName) => {
             $('#location_background_world').val(worldName).trigger('change');
         },
-        setMapping: (worldName, uid, type, value) => {
+        setMapping: (worldName, uid, value) => {
             const book = getBookStore(worldName, true);
-            const entry = activeWorldData?.entries?.[String(uid)] ?? { uid };
             if (!book.entries[String(uid)]) {
-                book.entries[String(uid)] = { label: 'Untitled entry', background: '', music: '', weather: '' };
+                book.entries[String(uid)] = { label: 'Untitled entry', background: '' };
             }
-            book.entries[String(uid)][type] = normalizeName(value);
+            book.entries[String(uid)].background = normalizeName(value);
             saveSettings();
             refreshSettingsUI();
         },
-        removeMapping: (worldName, uid, type = null) => removeEntryMapping(worldName, uid, type),
+        removeMapping: (worldName, uid) => removeEntryMapping(worldName, uid),
         setMarkerDetection: (enabled) => {
             getSettings().markerDetection = !!enabled;
-            saveSettings();
-            refreshSettingsUI();
-        },
-        setLorebookActivation: (enabled) => {
-            getSettings().useLorebookActivation = !!enabled;
             saveSettings();
             refreshSettingsUI();
         },
@@ -1445,9 +1507,6 @@ async function initialize() {
 
     if (eventSource && !eventsRegistered) {
         eventsRegistered = true;
-        if (eventTypes?.WORLD_INFO_ACTIVATED) {
-            eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
-        }
         for (const eventName of ['MESSAGE_RECEIVED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED']) {
             if (eventTypes?.[eventName]) {
                 eventSource.on(eventTypes[eventName], onChatMessageForLocationMarker);
@@ -1469,12 +1528,17 @@ async function initialize() {
         if (eventTypes?.CHAT_CHANGED) {
             eventSource.on(eventTypes.CHAT_CHANGED, async () => {
                 lastProcessedLocationSignature = '';
+                lastAppliedDetail = null;
                 const settings = getSettings();
                 if (!settings.selectedWorld && availableWorldNames.length) {
                     settings.selectedWorld = availableWorldNames[0];
                     saveSettings();
                 }
                 renderWorldOptions();
+                const restored = await restoreCurrentChatLocation();
+                if (!restored) {
+                    await processLatestChatMessageMarker();
+                }
                 refreshPromptInjection();
             });
         }
