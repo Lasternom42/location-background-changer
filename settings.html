@@ -171,6 +171,13 @@
                     </colgroup>
                     <tbody id="location_background_locations_body"></tbody>
                 </table>
+                <div class="location-background-field">
+                    <label for="location_background_start_location">Start location</label>
+                    <select id="location_background_start_location" class="text_pole wide100p">
+                        <option value="">No start location</option>
+                    </select>
+                    <small>Used only when the current chat has no saved or detectable location.</small>
+                </div>
             </div>
 
             <hr class="location-background-divider">
@@ -192,11 +199,6 @@
                 <small>Controls how the narrator writes the final location line in chat.</small>
 
                 <textarea id="location_background_prompt_text" class="text_pole wide100p location-background-prompt-text"></textarea>
-
-                <div class="location-background-field">
-                    <h5>Current location block</h5>
-                    <textarea id="location_background_current_block" class="text_pole wide100p location-background-block-text"></textarea>
-                </div>
 
                 <div class="location-background-field">
                     <label class="checkbox_label" for="location_background_include_connected">

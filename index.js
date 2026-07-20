@@ -1,5 +1,4 @@
 import { extension_settings, getContext } from '../../../extensions.js';
-import { background_settings } from '../../../backgrounds.js';
 
 const MODULE_NAME = 'location-background';
 const MODULE_LABEL = 'Location Background Manager';
@@ -46,7 +45,7 @@ const LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES = [
     'If not, repeat the same current location.',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
-const DEFAULT_LOCATION_PROMPT = [
+const PREVIOUS_LOCATION_PROMPT = [
     'Choose the current location from the selected lorebook location entries only.',
     'Never invent new location names.',
     'End every narrator reply with:',
@@ -57,9 +56,10 @@ const DEFAULT_LOCATION_PROMPT = [
     'If not, repeat the same current location.',
     'If uncertain, keep the previous exact location.',
 ].join('\n');
-const DEFAULT_CURRENT_LOCATION_BLOCK = [
-    'Current scene context:',
-    '- Current location: {{currentLocation}}',
+const DEFAULT_LOCATION_PROMPT = [
+    'End every reply with exactly one {{locationLine}}.',
+    'Use an exact listed location; never invent one.',
+    'If movement is unclear, keep the current location.',
 ].join('\n');
 const LEGACY_CONNECTED_LOCATIONS_BLOCK = [
     'Use connected locations as the preferred next choices from the current node.',
@@ -72,7 +72,14 @@ const LEGACY_CONNECTED_LOCATIONS_BLOCK = [
     '- West Tower Observation Deck',
 ].join('\n');
 const DEFAULT_CONNECTED_LOCATIONS_BLOCK = [
+    'Connected: {{connectedLocations}}',
+].join('\n');
+const PREVIOUS_CONNECTED_LOCATIONS_BLOCK = [
     'Use connected locations as the preferred next choices from the current node.',
+    'Connected locations:',
+    '{{connectedLocations}}',
+].join('\n');
+const INTERMEDIATE_CONNECTED_LOCATIONS_BLOCK = [
     'Connected locations:',
     '{{connectedLocations}}',
 ].join('\n');
@@ -91,11 +98,18 @@ const LEGACY_MINIMAL_ALIASES_BLOCK = [
     '{{aliases}}',
 ].join('\n');
 const DEFAULT_ALIASES_BLOCK = [
+    'Aliases:',
+    '{{aliases}}',
+].join('\n');
+const PREVIOUS_ALIASES_BLOCK = [
     'Use aliases to convert scene wording to the exact location node name.',
     'Aliases:',
     '{{aliases}}',
 ].join('\n');
 const DEFAULT_MULTI_HOP_BLOCK = [
+    'For multi-hop movement, choose only the final reached listed location.',
+].join('\n');
+const PREVIOUS_MULTI_HOP_BLOCK = [
     'If the scene clearly moves through multiple spaces in one reply, choose the final physically reached location, but only if it is reachable through valid nearby nodes.',
     'If not sure, keep the current location.',
 ].join('\n');
@@ -107,7 +121,6 @@ const DEFAULT_SETTINGS = Object.freeze({
     markerDetection: true,
     promptInjector: true,
     locationPrompt: DEFAULT_LOCATION_PROMPT,
-    currentLocationBlock: DEFAULT_CURRENT_LOCATION_BLOCK,
     includeConnectedLocations: true,
     connectedLocationsBlock: DEFAULT_CONNECTED_LOCATIONS_BLOCK,
     includeAliases: false,
@@ -116,6 +129,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     multiHopBlock: DEFAULT_MULTI_HOP_BLOCK,
     locationLineFormat: LOCATION_LINE_FORMATS.visible,
     maxPromptLocations: 12,
+    startLocations: {},
     chatLocations: {},
     selectedWorld: '',
     books: {},
@@ -179,12 +193,17 @@ function getSettings() {
     if (!settings.chatLocations || typeof settings.chatLocations !== 'object' || Array.isArray(settings.chatLocations)) {
         settings.chatLocations = {};
     }
+    if (!settings.startLocations || typeof settings.startLocations !== 'object' || Array.isArray(settings.startLocations)) {
+        settings.startLocations = {};
+    }
 
     // Migrate the old global location once, then keep all future state chat-scoped.
     if (settings.currentLocation && !settings.chatLocations[getChatLocationKey()]) {
         settings.chatLocations[getChatLocationKey()] = normalizeName(settings.currentLocation);
     }
     delete settings.currentLocation;
+    delete settings.currentLocationBlock;
+    delete settings.promptTokenBudget;
     delete settings.useLorebookActivation;
 
     for (const book of Object.values(settings.books)) {
@@ -194,16 +213,19 @@ function getSettings() {
         }
     }
 
-    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE, LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES].includes(settings.locationPrompt)) {
+    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE, LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES, PREVIOUS_LOCATION_PROMPT].includes(settings.locationPrompt)) {
         settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
     }
 
-    if (settings.connectedLocationsBlock === LEGACY_CONNECTED_LOCATIONS_BLOCK) {
+    if ([LEGACY_CONNECTED_LOCATIONS_BLOCK, PREVIOUS_CONNECTED_LOCATIONS_BLOCK, INTERMEDIATE_CONNECTED_LOCATIONS_BLOCK].includes(settings.connectedLocationsBlock)) {
         settings.connectedLocationsBlock = DEFAULT_CONNECTED_LOCATIONS_BLOCK;
     }
 
-    if ([LEGACY_ALIASES_BLOCK, LEGACY_MINIMAL_ALIASES_BLOCK].includes(settings.aliasesBlock)) {
+    if ([LEGACY_ALIASES_BLOCK, LEGACY_MINIMAL_ALIASES_BLOCK, PREVIOUS_ALIASES_BLOCK].includes(settings.aliasesBlock)) {
         settings.aliasesBlock = DEFAULT_ALIASES_BLOCK;
+    }
+    if (settings.multiHopBlock === PREVIOUS_MULTI_HOP_BLOCK) {
+        settings.multiHopBlock = DEFAULT_MULTI_HOP_BLOCK;
     }
 
     return settings;
@@ -334,6 +356,7 @@ function setEntryMapping(worldName, entry, value) {
         book.entries[uid] = {
             label: getEntryLabel(entry),
             background: '',
+            originalDisabled: !!entry.disable,
         };
     }
 
@@ -350,6 +373,9 @@ function removeEntryMapping(worldName, uid) {
     }
 
     delete book.entries[String(uid)];
+    if (String(getSettings().startLocations[normalizeName(worldName)] ?? '') === String(uid)) {
+        delete getSettings().startLocations[normalizeName(worldName)];
+    }
 
     saveSettings();
     refreshSettingsUI();
@@ -535,6 +561,20 @@ function renderLocationsList() {
     }
 }
 
+function renderStartLocationOptions() {
+    const select = $('#location_background_start_location');
+    if (!select.length) return;
+    const selectedUid = String(getSettings().startLocations[activeWorldName] ?? '');
+    select.empty().append($('<option>').val('').text('No start location'));
+    for (const [uid, mapping] of Object.entries(getCurrentWorldMappings())
+        .filter(([, value]) => normalizeName(value?.background))
+        .sort(([, left], [, right]) => normalizeName(left?.label).localeCompare(normalizeName(right?.label)))) {
+        const entry = getEntryByUid(uid);
+        select.append($('<option>').val(uid).text(entry ? getEntryLabel(entry) : mapping.label));
+    }
+    select.val(selectedUid);
+}
+
 function refreshSettingsUI() {
     const settings = getSettings();
     const selectedWorld = getSelectedWorldName();
@@ -554,7 +594,6 @@ function refreshSettingsUI() {
     $('#location_background_line_format').val(Object.values(LOCATION_LINE_FORMATS).includes(settings.locationLineFormat)
         ? settings.locationLineFormat
         : LOCATION_LINE_FORMATS.visible);
-    $('#location_background_current_block').val(String(settings.currentLocationBlock ?? DEFAULT_CURRENT_LOCATION_BLOCK));
     $('#location_background_include_connected').prop('checked', !!settings.includeConnectedLocations);
     $('#location_background_connected_block').val(String(settings.connectedLocationsBlock ?? DEFAULT_CONNECTED_LOCATIONS_BLOCK));
     $('#location_background_include_aliases').prop('checked', !!settings.includeAliases);
@@ -564,7 +603,6 @@ function refreshSettingsUI() {
     $('#location_background_prompt_controls').toggleClass('location-background-disabled', !promptEnabled);
     $('#location_background_prompt_text').prop('disabled', !promptEnabled);
     $('#location_background_line_format').prop('disabled', !promptEnabled);
-    $('#location_background_current_block').prop('disabled', !promptEnabled);
     $('#location_background_include_connected').prop('disabled', !promptEnabled);
     $('#location_background_include_aliases').prop('disabled', !promptEnabled);
     $('#location_background_allow_multihop').prop('disabled', !promptEnabled);
@@ -585,6 +623,7 @@ function refreshSettingsUI() {
 
     renderEntryPicker();
     renderLocationsList();
+    renderStartLocationOptions();
     refreshPromptInjection();
 }
 
@@ -631,6 +670,52 @@ async function fetchWorldBook(worldName) {
     return await response.json();
 }
 
+async function saveActiveWorldBook() {
+    if (!activeWorldName || !activeWorldData) return false;
+    const response = await fetch('/api/worldinfo/edit', {
+        method: 'POST',
+        headers: getSillyTavernHeaders(),
+        body: JSON.stringify({ name: activeWorldName, data: activeWorldData }),
+    });
+    if (!response.ok) {
+        throw new Error(`Could not update lorebook "${activeWorldName}": ${response.status} ${response.statusText}`);
+    }
+    return true;
+}
+
+async function setManagedEntryPromptExclusion(uid, excluded) {
+    const entry = getEntryByUid(uid);
+    const mapping = getEntryMapping(getBookStore(activeWorldName, false), uid);
+    if (!entry || !mapping) return false;
+    const targetDisabled = excluded ? true : !!mapping.originalDisabled;
+    if (!!entry.disable === targetDisabled) return true;
+    entry.disable = targetDisabled;
+    await saveActiveWorldBook();
+    return true;
+}
+
+async function ensureManagedEntriesExcluded() {
+    const book = getBookStore(activeWorldName, false);
+    if (!book) return;
+    let changed = false;
+    for (const [uid, mapping] of Object.entries(book.entries)) {
+        const entry = getEntryByUid(uid);
+        if (!entry) continue;
+        if (!Object.hasOwn(mapping, 'originalDisabled')) {
+            mapping.originalDisabled = !!entry.disable;
+            changed = true;
+        }
+        if (!entry.disable) {
+            entry.disable = true;
+            changed = true;
+        }
+    }
+    if (changed) {
+        saveSettings();
+        await saveActiveWorldBook();
+    }
+}
+
 async function loadSelectedWorld(worldName = getSelectedWorldName()) {
     const normalizedWorld = normalizeName(worldName);
     const settings = getSettings();
@@ -651,6 +736,7 @@ async function loadSelectedWorld(worldName = getSelectedWorldName()) {
 
     try {
         activeWorldData = await fetchWorldBook(normalizedWorld);
+        await ensureManagedEntriesExcluded();
         const warnings = validateLocationConfiguration();
         setStatus(warnings.length
             ? `Loaded lorebook with ${warnings.length} configuration warning(s). See the browser console.`
@@ -659,7 +745,7 @@ async function loadSelectedWorld(worldName = getSelectedWorldName()) {
             warn('Location configuration warnings:', warnings);
         }
         refreshSettingsUI();
-        await restoreCurrentChatLocation();
+        await initializeCurrentChatLocation();
     } catch (error) {
         activeWorldData = null;
         setStatus(error.message, true);
@@ -668,7 +754,7 @@ async function loadSelectedWorld(worldName = getSelectedWorldName()) {
     }
 }
 
-function onAddLocationClick() {
+async function onAddLocationClick() {
     const uid = normalizeName($('#location_background_entry_picker').val());
     const entry = getEntryByUid(uid);
 
@@ -678,6 +764,14 @@ function onAddLocationClick() {
     }
 
     setEntryMapping(activeWorldName, entry, '');
+    try {
+        await setManagedEntryPromptExclusion(uid, true);
+    } catch (error) {
+        removeEntryMapping(activeWorldName, uid);
+        setStatus(error.message, true);
+        showToast('warning', error.message);
+        return;
+    }
     setStatus(`Added location "${getEntryLabel(entry)}".`);
 }
 
@@ -695,7 +789,7 @@ function onBackgroundSelectChange(event) {
     setStatus(`Saved background for "${getEntryLabel(entry)}".`);
 }
 
-function onRemoveEntryClick(event) {
+async function onRemoveEntryClick(event) {
     const button = event.currentTarget;
     const row = button.closest('tr');
     const uid = row?.getAttribute('data-uid');
@@ -706,6 +800,13 @@ function onRemoveEntryClick(event) {
 
     const entry = getEntryByUid(uid);
     const label = entry ? getEntryLabel(entry) : getBookStore(activeWorldName, false)?.entries?.[uid]?.label || 'location entry';
+    try {
+        await setManagedEntryPromptExclusion(uid, false);
+    } catch (error) {
+        setStatus(error.message, true);
+        showToast('warning', error.message);
+        return;
+    }
     removeEntryMapping(activeWorldName, uid);
     setStatus(`Removed "${label}" from the manager.`);
 }
@@ -749,12 +850,6 @@ function bindSettingsEvents() {
         refreshSettingsUI();
     });
 
-    $('#location_background_current_block').on('input change', function () {
-        getSettings().currentLocationBlock = String($(this).val() ?? '');
-        saveSettings();
-        refreshPromptInjection();
-    });
-
     $('#location_background_connected_block').on('input change', function () {
         getSettings().connectedLocationsBlock = String($(this).val() ?? '');
         saveSettings();
@@ -795,6 +890,14 @@ function bindSettingsEvents() {
         getSettings().maxPromptLocations = clampNumber($(this).val(), 1, 50, DEFAULT_SETTINGS.maxPromptLocations);
         saveSettings();
         refreshSettingsUI();
+    });
+
+    $('#location_background_start_location').on('change', function () {
+        const uid = normalizeName($(this).val());
+        if (uid) getSettings().startLocations[activeWorldName] = uid;
+        else delete getSettings().startLocations[activeWorldName];
+        saveSettings();
+        refreshPromptInjection();
     });
 
     $('#location_background_world').on('change', async function () {
@@ -904,26 +1007,18 @@ function extractEntrySectionList(entry, sectionNames) {
 
 function getPromptLocationEntries() {
     const mappings = getCurrentWorldMappings();
+    const useAliases = !!getSettings().includeAliases;
 
     return Object.entries(mappings)
         .filter(([, mapping]) => normalizeName(mapping?.background))
         .map(([uid, mapping]) => {
             const entry = getEntryByUid(uid);
             const label = entry ? getEntryLabel(entry) : normalizeName(mapping?.label) || 'Unknown entry';
-            const aliases = [
+            const aliases = useAliases ? [
                 ...readEntryNames(entry ?? {}),
                 ...extractEntrySectionList(entry, ['alias', 'aliases', 'also known as']),
-            ].filter((name) => name && !hasSharedLocationKey(name, label));
-            const connections = extractEntrySectionList(entry, [
-                'connected',
-                'connections',
-                'connected locations',
-                'related',
-                'related locations',
-                'exits',
-                'nearby',
-                'nearby locations',
-            ]);
+            ].filter((name) => name && !hasSharedLocationKey(name, label)) : [];
+            const connections = extractEntrySectionList(entry, ['connected locations']);
 
             return {
                 uid,
@@ -1009,7 +1104,7 @@ function getConnectedPromptLocations(currentLocation, locations) {
 }
 
 function renderPromptLocationList(locations) {
-    return locations.map((location) => `- ${location.label}`).join('\n');
+    return locations.map((location) => location.label).join(' | ');
 }
 
 function renderPromptAliasList(locations) {
@@ -1050,9 +1145,7 @@ function buildLocationPrompt() {
     let candidateLocations = [];
 
     if (currentLocation) {
-        promptLines.push('', applyPromptTemplate(settings.currentLocationBlock ?? DEFAULT_CURRENT_LOCATION_BLOCK, {
-            currentLocation: currentLocation.label,
-        }));
+        promptLines.push('', `Current location: ${currentLocation.label}`);
     }
 
     if (settings.includeConnectedLocations && currentLocation) {
@@ -1062,10 +1155,16 @@ function buildLocationPrompt() {
                 connectedLocations: renderPromptLocationList(candidateLocations),
             }));
         }
-    } else if (!currentLocation && locations.length) {
-        candidateLocations = locations.slice(0, maxLocations);
-        promptLines.push('', 'Location choices:');
-        promptLines.push(renderPromptLocationList(candidateLocations));
+    }
+
+
+    if (settings.allowMultiHop) {
+        const existingUids = new Set([currentLocation, ...candidateLocations].filter(Boolean).map((item) => item.uid));
+        const extraLocations = locations.filter((location) => !existingUids.has(location.uid)).slice(0, maxLocations);
+        if (extraLocations.length) {
+            candidateLocations.push(...extraLocations);
+            promptLines.push('', 'Reachable location graph:', renderPromptLocationList(extraLocations));
+        }
     }
 
     if (settings.includeAliases) {
@@ -1217,8 +1316,11 @@ function getMappingLocationNames(uid, mapping) {
     const entry = getEntryByUid(uid);
     const names = [
         mapping?.label,
-        ...(entry ? readEntryNames(entry) : []),
+        entry ? getEntryLabel(entry) : '',
     ];
+    if (getSettings().includeAliases && entry) {
+        names.push(...readEntryNames(entry), ...extractEntrySectionList(entry, ['alias', 'aliases', 'also known as']));
+    }
 
     return [...new Set(names.map(normalizeName).filter(Boolean))];
 }
@@ -1334,20 +1436,22 @@ async function onChatMessageForLocationMarker(...args) {
     try {
         const signature = extractMessageSignatureFromEventArgs(args);
         if (!signature || signature === lastProcessedLocationSignature) {
-            return;
+            return false;
         }
 
         const processed = await processLocationMarkerText(extractMessageTextFromEventArgs(args));
         if (processed) {
             lastProcessedLocationSignature = signature;
         }
+        return processed;
     } catch (error) {
         warn(`Could not process location marker: ${error.message}`, error);
+        return false;
     }
 }
 
 async function processLatestChatMessageMarker() {
-    await onChatMessageForLocationMarker();
+    return await onChatMessageForLocationMarker();
 }
 
 async function restoreCurrentChatLocation() {
@@ -1363,6 +1467,21 @@ async function restoreCurrentChatLocation() {
     }
 
     return await applyEntryMapping(match.entry, match.mapping);
+}
+
+async function applyConfiguredStartLocation() {
+    const uid = String(getSettings().startLocations[activeWorldName] ?? '');
+    if (!uid) return false;
+    const mapping = getCurrentWorldMappings()[uid];
+    const entry = getEntryByUid(uid);
+    if (!mapping?.background || !entry) return false;
+    return await applyEntryMapping(entry, mapping);
+}
+
+async function initializeCurrentChatLocation() {
+    if (await restoreCurrentChatLocation()) return true;
+    if (await processLatestChatMessageMarker()) return true;
+    return await applyConfiguredStartLocation();
 }
 
 function applyBackground(background) {
@@ -1390,25 +1509,6 @@ function applyBackground(background) {
     return Promise.resolve(false);
 }
 
-function applyBackgroundFallback(background) {
-    const element = Array.from(document.querySelectorAll('.bg_example')).find((node) => normalizeName(node.getAttribute('bgfile')) === normalizeName(background));
-    if (element instanceof HTMLElement) {
-        element.click();
-        return true;
-    }
-
-    const backgroundElement = document.getElementById('bg1');
-    if (backgroundElement) {
-        backgroundElement.style.backgroundImage = `url("backgrounds/${encodeURIComponent(background)}")`;
-        background_settings.name = background;
-        background_settings.url = `url("backgrounds/${encodeURIComponent(background)}")`;
-        getSillyTavernContext()?.saveSettingsDebounced?.();
-        return true;
-    }
-
-    return false;
-}
-
 function emitLocationChanged(detail) {
     window.dispatchEvent(new CustomEvent(LOCATION_CHANGED_EVENT, { detail }));
 }
@@ -1418,12 +1518,9 @@ async function applyEntryMapping(entry, mapping) {
     if (mapping.background) {
         try {
             applied = await applyBackground(mapping.background);
-            if (!applied) {
-                applied = applyBackgroundFallback(mapping.background);
-            }
         } catch (error) {
-            warn(`Slash command /bg failed for "${mapping.background}". Trying fallback.`, error);
-            applied = applyBackgroundFallback(mapping.background);
+            warn(`Slash command /bg failed for "${mapping.background}". Keeping the current background.`, error);
+            applied = false;
         }
     }
 
@@ -1535,10 +1632,7 @@ async function initialize() {
                     saveSettings();
                 }
                 renderWorldOptions();
-                const restored = await restoreCurrentChatLocation();
-                if (!restored) {
-                    await processLatestChatMessageMarker();
-                }
+                await initializeCurrentChatLocation();
                 refreshPromptInjection();
             });
         }

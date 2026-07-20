@@ -21,6 +21,7 @@ The extension is designed for SillyTavern `1.18.x`.
 - Pick a lorebook first.
 - Under `Locations`, select a lorebook entry and press `+`.
 - Use the background dropdown to pick from current SillyTavern backgrounds.
+- Set a `Start location` for chats that have no saved or detectable location yet.
 - Use `Location Prompt Insert` to inject narrator location rules without editing character cards.
 - Use the trash button to remove a location entry from the manager.
 - Enable `Debug` to show lorebook counts, status, and last applied details.
@@ -35,9 +36,8 @@ Settings:
 - `Use prompt injector`: Enables or disables prompt injection.
 - `Location line format`: Selects visible `Location: ...` output or hidden HTML comment output.
 - `Location prompt`: The editable base instruction sent before generation.
-- `Current location block`: Always added when a current location is known. Supports `{{currentLocation}}`.
 - `Include connected locations`: Enables the connected locations block and its `Max locations` limit. Supports `{{connectedLocations}}`.
-- `Connected locations block`: Editable prompt text for nearby node choices and lorebook format guidance.
+- `Connected locations block`: Editable prompt text for connected node choices.
 - `Include aliases`: Enables the aliases block. Supports `{{aliases}}`.
 - `Aliases block`: Editable prompt text for alias handling and lorebook format guidance.
 - `Allow multi-hop location changes`: Enables the multi-hop block.
@@ -51,40 +51,26 @@ When `Use prompt injector` is off, all prompt insert controls are disabled.
 Default base prompt:
 
 ```text
-Choose the current location from the selected lorebook location entries only.
-Never invent new location names.
-End every narrator reply with:
-{{locationLine}}
-Choose exactly one existing location name listed in this instruction.
-If the scene changed, output the new exact node name.
-If not, repeat the same current location.
-If uncertain, keep the previous exact location.
+End every reply with exactly one {{locationLine}}.
+Use an exact listed location; never invent one.
+If movement is unclear, keep the current location.
 ```
 
 Example final injected prompt:
 
 ```text
-Choose the current location from the selected lorebook location entries only.
-Never invent new location names.
-End every narrator reply with:
-Location: Exact Location Node Name
-Choose exactly one existing location name listed in this instruction.
-If the scene changed, output the new exact node name.
-If not, repeat the same current location.
-If uncertain, keep the previous exact location.
+End every reply with exactly one Location: Exact Location Node Name.
+Use an exact listed location; never invent one.
+If movement is unclear, keep the current location.
 
-Current scene context:
-- Current location: West Tower Entrance
+Current location: West Tower Entrance
 
-Connected locations:
-- West Tower Forest
-- West Tower Observation Deck
+Connected: West Tower Forest | West Tower Observation Deck
 ```
 
 Editable block placeholders:
 
 ```text
-{{currentLocation}}
 {{connectedLocations}}
 {{aliases}}
 {{locationLine}}
@@ -104,7 +90,23 @@ Connected locations:
 
 ## Runtime
 
-The selected `background` is applied with `/bg`, with a UI fallback for compatible SillyTavern versions. The current location is stored separately for each chat and lorebook. The extension prefers an explicit marker or `Location:` declaration and also emits a `location-background:changed` browser event after a successful change.
+The selected `background` is applied only with SillyTavern's `/bg` command. If that command fails, the current background and saved location are preserved; there is no direct DOM fallback.
+
+### Per-chat location storage
+
+The last successful location is stored under a key composed from the selected lorebook and current chat ID. On chat load, resolution follows this order:
+
+1. Restore the saved location for this chat and lorebook.
+2. Detect a marker, `Location:` declaration, or exact location name in the latest chat message.
+3. Use the configured start location.
+
+Normal prompts contain only `Current location:` and a compact one-line `Connected:` list. Aliases are neither parsed, matched, validated, nor injected while `Include aliases` is disabled. Multi-hop may add up to `Max locations` additional managed nodes.
+
+### No duplicate lorebook injection
+
+Managed location entries are automatically marked disabled in the SillyTavern lorebook. The extension can still read their names, `Connected locations:` data and aliases directly, but SillyTavern will not inject the same entry content again as regular World Info. The entry's original enabled/disabled state is stored in the mapping and restored when the location is removed from the manager.
+
+After a successful change, the extension emits a `location-background:changed` browser event.
 
 ## Location Marker
 
