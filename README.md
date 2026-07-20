@@ -65,7 +65,7 @@ If movement is unclear, keep the current location.
 
 Current location: West Tower Entrance
 
-Connected: West Tower Forest | West Tower Observation Deck
+Connected locations: West Tower Forest | West Tower Observation Deck
 ```
 
 Editable block placeholders:
@@ -83,9 +83,7 @@ Aliases:
 - outside the west tower
 - tower approach
 
-Connected locations:
-- West Tower Forest
-- West Tower Observation Deck
+Connected locations: West Tower Forest | West Tower Observation Deck
 ```
 
 ## Runtime
@@ -100,7 +98,7 @@ The last successful location is stored under a key composed from the selected lo
 2. Detect a marker, `Location:` declaration, or exact location name in the latest chat message.
 3. Use the configured start location.
 
-Normal prompts contain only `Current location:` and a compact one-line `Connected:` list. Aliases are neither parsed, matched, validated, nor injected while `Include aliases` is disabled. Multi-hop may add up to `Max locations` additional managed nodes.
+Normal prompts contain only `Current location:` and a compact one-line `Connected locations: A | B` list. Use the same pipe-separated format in the lorebook. Aliases are neither parsed, matched, validated, nor injected while `Include aliases` is disabled. Multi-hop may add up to `Max locations` additional managed nodes.
 
 ### No duplicate lorebook injection
 

@@ -72,7 +72,7 @@ const LEGACY_CONNECTED_LOCATIONS_BLOCK = [
     '- West Tower Observation Deck',
 ].join('\n');
 const DEFAULT_CONNECTED_LOCATIONS_BLOCK = [
-    'Connected: {{connectedLocations}}',
+    'Connected locations: {{connectedLocations}}',
 ].join('\n');
 const PREVIOUS_CONNECTED_LOCATIONS_BLOCK = [
     'Use connected locations as the preferred next choices from the current node.',
@@ -83,6 +83,7 @@ const INTERMEDIATE_CONNECTED_LOCATIONS_BLOCK = [
     'Connected locations:',
     '{{connectedLocations}}',
 ].join('\n');
+const PREVIOUS_COMPACT_CONNECTED_LOCATIONS_BLOCK = 'Connected: {{connectedLocations}}';
 const LEGACY_ALIASES_BLOCK = [
     'Use aliases to convert scene wording to the exact location node name.',
     'Aliases:',
@@ -217,7 +218,7 @@ function getSettings() {
         settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
     }
 
-    if ([LEGACY_CONNECTED_LOCATIONS_BLOCK, PREVIOUS_CONNECTED_LOCATIONS_BLOCK, INTERMEDIATE_CONNECTED_LOCATIONS_BLOCK].includes(settings.connectedLocationsBlock)) {
+    if ([LEGACY_CONNECTED_LOCATIONS_BLOCK, PREVIOUS_CONNECTED_LOCATIONS_BLOCK, INTERMEDIATE_CONNECTED_LOCATIONS_BLOCK, PREVIOUS_COMPACT_CONNECTED_LOCATIONS_BLOCK].includes(settings.connectedLocationsBlock)) {
         settings.connectedLocationsBlock = DEFAULT_CONNECTED_LOCATIONS_BLOCK;
     }
 
