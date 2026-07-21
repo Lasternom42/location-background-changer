@@ -1568,32 +1568,26 @@ async function initializeCurrentChatLocation() {
 }
 
 function applyBackground(background) {
-    const context = getSillyTavernContext();
     const availableBackground = getAvailableBackgroundNames().find((name) => normalizeName(name).toLowerCase() === normalizeName(background).toLowerCase());
     if (!availableBackground) {
         return Promise.reject(new Error(`Background "${background}" is not available in SillyTavern.`));
     }
-    const command = `/bg ${JSON.stringify(availableBackground)}`;
-
-    if (typeof context?.executeSlashCommandsWithOptions === 'function') {
-        return context.executeSlashCommandsWithOptions(command, {
-            handleParserErrors: false,
-            handleExecutionErrors: true,
-            source: MODULE_NAME,
-        }).then((result) => {
-            if (result?.isError) {
-                throw new Error(result.errorMessage || `Slash command failed: ${command}`);
-            }
-            return true;
-        });
+    let element = Array.from(document.querySelectorAll('.bg_example'))
+        .find((node) => normalizeName(node.getAttribute('bgfile')).toLowerCase() === normalizeName(availableBackground).toLowerCase());
+    let temporaryElement = null;
+    if (!element) {
+        temporaryElement = document.createElement('div');
+        temporaryElement.className = 'bg_example';
+        temporaryElement.hidden = true;
+        temporaryElement.setAttribute('bgfile', availableBackground);
+        temporaryElement.setAttribute('custom', 'false');
+        $(temporaryElement).data('url', `url("backgrounds/${encodeURIComponent(availableBackground)}")`);
+        document.body.appendChild(temporaryElement);
+        element = temporaryElement;
     }
-
-    const bgCommand = context?.SlashCommandParser?.commands?.bg;
-    if (bgCommand?.callback) {
-        return Promise.resolve(bgCommand.callback({}, background)).then(() => true);
-    }
-
-    return Promise.resolve(false);
+    $(element).trigger('click');
+    temporaryElement?.remove();
+    return Promise.resolve(true);
 }
 
 function emitLocationChanged(detail) {

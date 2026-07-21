@@ -85,7 +85,7 @@ Connected locations: West Tower Forest | West Tower Observation Deck
 
 ## Runtime
 
-The selected `background` is applied only with SillyTavern's `/bg` command. If that command fails, the current background and saved location are preserved; there is no direct DOM fallback.
+The selected background is validated against SillyTavern's complete server background list and applied through SillyTavern's native background selection handler. This remains reliable when the background gallery is filtered or displaying another folder. If validation or selection fails, the current background and saved location are preserved.
 
 ### Per-chat location storage
 
