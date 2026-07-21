@@ -1,0 +1,12 @@
+{
+  "display_name": "Location Background Manager",
+  "loading_order": 99,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "author": "Unknown",
+  "version": "2.4.3",
+  "auto_update": false,
+  "minimum_client_version": "1.18.0"
+}

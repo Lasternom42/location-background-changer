@@ -1,0 +1,244 @@
+<div id="location_background_settings" class="location-background-settings">
+    <style>
+        #location_background_settings .location-background-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #location_background_settings .location-background-list,
+        #location_background_settings .location-background-list tr,
+        #location_background_settings .location-background-list td {
+            border: 0 !important;
+        }
+
+        #location_background_settings .location-background-list {
+            border-collapse: collapse;
+        }
+
+        #location_background_settings .location-background-list td {
+            padding: 4px 2px;
+            vertical-align: middle;
+        }
+
+        #location_background_settings .location-background-actions {
+            width: 1%;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        #location_background_settings .location-background-remove-entry {
+            min-width: 0;
+            width: 2em;
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        #location_background_settings .location-background-prompt-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 6px 10px;
+        }
+
+        #location_background_settings .location-background-prompt-text,
+        #location_background_settings .location-background-prompt-preview {
+            min-height: 7em;
+            resize: vertical;
+            white-space: pre-wrap;
+        }
+
+        #location_background_settings .location-background-block-text {
+            min-height: 6em;
+            resize: vertical;
+            white-space: pre-wrap;
+        }
+
+        #location_background_settings .location-background-block-text:disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
+        #location_background_settings .location-background-prompt-text:disabled,
+        #location_background_settings .location-background-prompt-control:disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
+        #location_background_settings .location-background-number {
+            width: 5em;
+        }
+
+        #location_background_settings .location-background-field {
+            margin-top: 10px;
+        }
+
+        #location_background_settings .location-background-section {
+            margin-top: 14px;
+            padding-top: 12px;
+        }
+
+        #location_background_settings .location-background-divider {
+            border: 0;
+            border-top: 1px solid var(--SmartThemeQuoteColor, rgba(128, 128, 128, 0.45));
+            margin: 14px 0 0;
+            opacity: 0.9;
+        }
+
+        #location_background_settings .location-background-number:disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
+        #location_background_settings .location-background-disabled {
+            opacity: 0.55;
+            filter: grayscale(1);
+            pointer-events: none;
+        }
+    </style>
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Location Background Manager</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="location-background-options">
+                <label class="checkbox_label" for="location_background_enabled">
+                    <input id="location_background_enabled" type="checkbox">
+                    <span>Enable automatic background changes</span>
+                </label>
+
+                <div id="location_background_top_controls" class="location-background-options">
+                <label class="checkbox_label" for="location_background_show_toasts">
+                    <input id="location_background_show_toasts" type="checkbox">
+                    <span>Show toast messages</span>
+                </label>
+
+                <label class="checkbox_label" for="location_background_debug">
+                    <input id="location_background_debug" type="checkbox">
+                    <span>Debug</span>
+                </label>
+                </div>
+            </div>
+
+            <div id="location_background_main_controls">
+            <hr class="location-background-divider">
+            <div class="location-background-section">
+                <h4>Lorebook Selector</h4>
+                <div class="flex-container alignItemsCenter flexGap5">
+                    <select id="location_background_world" class="text_pole flex1">
+                        <option value="">Select a lorebook</option>
+                    </select>
+                    <button id="location_background_refresh_worlds" class="menu_button" type="button" title="Reload lorebook list">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                    <button id="location_background_reload_world" class="menu_button" type="button" title="Reload selected lorebook">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+
+                <div id="location_background_debug_info" class="marginTop10">
+                    <div><b>Selected lorebook:</b> <span id="location_background_selected_world">None</span></div>
+                    <div><b>Known lorebooks:</b> <span id="location_background_world_count">0</span></div>
+                    <div><b>Entries loaded:</b> <span id="location_background_entry_count">0</span></div>
+                    <div><b>Status:</b> <span id="location_background_status">Starting...</span></div>
+                    <div><b>Last applied:</b> <span id="location_background_last">None yet</span></div>
+                </div>
+            </div>
+
+            <hr class="location-background-divider">
+            <div class="location-background-section">
+                <h4>Locations</h4>
+                <div class="flex-container alignItemsCenter flexGap5">
+                    <select id="location_background_entry_picker" class="text_pole flex1">
+                        <option value="">Select a lorebook entry</option>
+                    </select>
+                    <button id="location_background_add_entry" class="menu_button" type="button" title="Add selected location">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+                <small>Select an entry from the lorebook, then press + to manage it as a location.</small>
+
+                <h4 class="marginTop10">Location Entries</h4>
+                <table class="location-background-list wide100p marginTop10">
+                    <colgroup>
+                        <col>
+                        <col>
+                        <col style="width: 2em;">
+                    </colgroup>
+                    <tbody id="location_background_locations_body"></tbody>
+                </table>
+                <div class="location-background-field">
+                    <label for="location_background_start_location">Start location</label>
+                    <select id="location_background_start_location" class="text_pole wide100p">
+                        <option value="">No start location</option>
+                    </select>
+                    <small>Used only when the current chat has no saved or detectable location.</small>
+                </div>
+            </div>
+
+            <hr class="location-background-divider">
+            <div class="location-background-section">
+                <h4>Location Prompt Insert</h4>
+                <label class="checkbox_label" for="location_background_prompt_injector">
+                    <input id="location_background_prompt_injector" type="checkbox">
+                    <span>Use prompt injector</span>
+                </label>
+
+                <div id="location_background_prompt_controls">
+                <div class="flex-container alignItemsCenter flexGap5 marginTop10">
+                    <label for="location_background_line_format">Location line format</label>
+                    <select id="location_background_line_format" class="text_pole location-background-prompt-control">
+                        <option value="visible">Visible</option>
+                        <option value="hidden">Hidden HTML comment</option>
+                    </select>
+                </div>
+                <small>Controls how the narrator writes the final location line in chat.</small>
+
+                <textarea id="location_background_prompt_text" class="text_pole wide100p location-background-prompt-text"></textarea>
+
+                <div class="location-background-field">
+                    <label class="checkbox_label" for="location_background_include_connected">
+                        <input id="location_background_include_connected" class="location-background-prompt-control" type="checkbox">
+                        <span>Include connected locations</span>
+                    </label>
+                    <small>Limits how many generated connected-location choices are injected into the prompt.</small>
+                    <div class="flex-container alignItemsCenter flexGap5 marginTop10">
+                        <label for="location_background_max_locations">Max locations</label>
+                        <input id="location_background_max_locations" class="text_pole location-background-number location-background-prompt-control" type="number" min="1" max="50" step="1">
+                    </div>
+                    <small>Lorebook entry format: Connected locations: West Tower Forest | West Tower Observation Deck</small>
+                    <textarea id="location_background_connected_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
+
+                <div class="location-background-field">
+                    <label class="checkbox_label" for="location_background_include_aliases">
+                        <input id="location_background_include_aliases" class="location-background-prompt-control" type="checkbox">
+                        <span>Include aliases</span>
+                    </label>
+                    <small>Use aliases to convert scene wording to the exact location node name.</small>
+                    <small>Lorebook entry format example: Aliases: outside the west tower, tower approach</small>
+                    <textarea id="location_background_aliases_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
+
+                <div class="location-background-field">
+                    <label class="checkbox_label" for="location_background_allow_multihop">
+                        <input id="location_background_allow_multihop" class="location-background-prompt-control" type="checkbox">
+                        <span>Allow multi-hop location changes</span>
+                    </label>
+                    <textarea id="location_background_multihop_block" class="text_pole wide100p location-background-block-text"></textarea>
+                </div>
+
+                <div id="location_background_prompt_preview_block" class="marginTop10">
+                    <h4>Prompt Preview</h4>
+                    <textarea id="location_background_prompt_preview" class="text_pole wide100p location-background-prompt-preview" readonly></textarea>
+                </div>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+</div>
