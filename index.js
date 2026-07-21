@@ -146,6 +146,7 @@ let settingsRendered = false;
 let activeWorldName = '';
 let activeWorldData = null;
 let availableWorldNames = [];
+let availableBackgroundNames = [];
 let lastAppliedDetail = null;
 let lastStatusMessage = 'Starting...';
 let lastStatusIsError = false;
@@ -324,7 +325,7 @@ function getEntryMapping(book, uid) {
 }
 
 function getAvailableBackgroundNames() {
-    const names = new Set();
+    const names = new Set(availableBackgroundNames);
 
     for (const element of document.querySelectorAll('.bg_example')) {
         const name = normalizeName(
@@ -340,14 +341,20 @@ function getAvailableBackgroundNames() {
         }
     }
 
-    for (const mapping of Object.values(getCurrentWorldMappings())) {
-        const background = normalizeName(mapping?.background);
-        if (background) {
-            names.add(background);
-        }
-    }
-
     return [...names].sort((left, right) => left.localeCompare(right));
+}
+
+async function refreshAvailableBackgroundNames() {
+    const response = await fetch('/api/backgrounds/all', {
+        method: 'POST',
+        headers: getSillyTavernHeaders(),
+        body: JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error(`Could not load backgrounds: ${response.status} ${response.statusText}`);
+    const data = await response.json();
+    availableBackgroundNames = Array.isArray(data.images)
+        ? data.images.map((item) => normalizeName(item?.filename)).filter(Boolean)
+        : [];
 }
 
 function setEntryMapping(worldName, entry, value) {
@@ -548,6 +555,9 @@ function renderLocationsList() {
         const backgroundNames = getAvailableBackgroundNames();
 
         backgroundSelect.append($('<option>').val('').text('Select background'));
+        if (currentBackground && !backgroundNames.includes(currentBackground)) {
+            backgroundSelect.append($('<option>').val(currentBackground).text(`[Missing] ${currentBackground}`));
+        }
         for (const background of backgroundNames) {
             backgroundSelect.append($('<option>').val(background).text(background));
         }
@@ -924,7 +934,10 @@ function bindSettingsEvents() {
 }
 
 async function refreshWorldNames() {
-    availableWorldNames = await fetchWorldNames();
+    [availableWorldNames] = await Promise.all([
+        fetchWorldNames(),
+        refreshAvailableBackgroundNames(),
+    ]);
     renderWorldOptions();
     await loadSelectedWorld();
 }
@@ -1559,7 +1572,11 @@ async function initializeCurrentChatLocation() {
 
 function applyBackground(background) {
     const context = getSillyTavernContext();
-    const command = `/bg ${JSON.stringify(String(background))}`;
+    const availableBackground = getAvailableBackgroundNames().find((name) => normalizeName(name).toLowerCase() === normalizeName(background).toLowerCase());
+    if (!availableBackground) {
+        return Promise.reject(new Error(`Background "${background}" is not available in SillyTavern.`));
+    }
+    const command = `/bg ${JSON.stringify(availableBackground)}`;
 
     if (typeof context?.executeSlashCommandsWithOptions === 'function') {
         return context.executeSlashCommandsWithOptions(command, {
@@ -1592,7 +1609,7 @@ async function applyEntryMapping(entry, mapping) {
         try {
             applied = await applyBackground(mapping.background);
         } catch (error) {
-            warn(`Slash command /bg failed for "${mapping.background}". Keeping the current background.`, error);
+            warn(`Could not apply "${mapping.background}". Keeping the current background.`, error);
             applied = false;
         }
     }
@@ -1664,6 +1681,12 @@ async function initialize() {
     initialized = true;
     getSettings();
     registerDebugApi();
+
+    try {
+        await refreshAvailableBackgroundNames();
+    } catch (error) {
+        warn(error.message);
+    }
 
     try {
         await renderSettingsPanel();

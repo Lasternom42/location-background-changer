@@ -21,6 +21,7 @@ The extension is designed for SillyTavern `1.18.x`.
 - Pick a lorebook first.
 - Under `Locations`, select a lorebook entry and press `+`.
 - Use the background dropdown to pick from current SillyTavern backgrounds.
+- A saved background that no longer exists is shown as `[Missing] filename` and is never reported as applied. Upload it again or select another available background.
 - Set a `Start location` for chats that have no saved or detectable location yet.
 - Use `Location Prompt Insert` to inject narrator location rules without editing character cards.
 - Use the trash button to remove a location entry from the manager.
