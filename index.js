@@ -140,6 +140,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     maxPromptLocations: 12,
     startLocations: {},
     chatLocations: {},
+    chatSpeakers: {},
     selectedWorld: '',
     books: {},
 });
@@ -202,6 +203,9 @@ function getSettings() {
 
     if (!settings.chatLocations || typeof settings.chatLocations !== 'object' || Array.isArray(settings.chatLocations)) {
         settings.chatLocations = {};
+    }
+    if (!settings.chatSpeakers || typeof settings.chatSpeakers !== 'object' || Array.isArray(settings.chatSpeakers)) {
+        settings.chatSpeakers = {};
     }
     if (!settings.startLocations || typeof settings.startLocations !== 'object' || Array.isArray(settings.startLocations)) {
         settings.startLocations = {};
@@ -1432,6 +1436,32 @@ function getMessageIndexFromEventArgs(args) {
     return Array.isArray(context?.chat) && context.chat.length ? context.chat.length - 1 : -1;
 }
 
+function getMessageSpeaker(message) {
+    return normalizeName(message?.name || message?.character_name || message?.speaker || '');
+}
+
+function canMessageReportLocation(args) {
+    const context = getSillyTavernContext();
+    const messageIndex = getMessageIndexFromEventArgs(args);
+    const message = context?.chat?.[messageIndex];
+    if (!message || message.is_user || message.is_system) return false;
+    const speaker = getMessageSpeaker(message);
+    const settings = getSettings();
+    const storedSpeaker = normalizeName(settings.chatSpeakers[getChatLocationKey()] || '');
+    if (storedSpeaker) return !speaker || storedSpeaker === speaker;
+    if (messageIndex <= 0) return true;
+    return !!context.chat[messageIndex - 1]?.is_user;
+}
+
+function rememberLocationSpeaker(args) {
+    const context = getSillyTavernContext();
+    const message = context?.chat?.[getMessageIndexFromEventArgs(args)];
+    const speaker = getMessageSpeaker(message);
+    if (!speaker) return;
+    getSettings().chatSpeakers[getChatLocationKey()] = speaker;
+    saveSettings();
+}
+
 function getReportedLocationName(text) {
     return extractLocationMarker(text) || extractLocationDeclaration(text) || extractLocationLine(text);
 }
@@ -1512,6 +1542,7 @@ async function processLocationMarkerText(text) {
 
 async function onChatMessageForLocationMarker(...args) {
     try {
+        if (!canMessageReportLocation(args)) return false;
         const signature = extractMessageSignatureFromEventArgs(args);
         if (!signature || signature === lastProcessedLocationSignature) {
             return false;
@@ -1525,6 +1556,7 @@ async function onChatMessageForLocationMarker(...args) {
         }
         if (processed) {
             lastProcessedLocationSignature = signature;
+            rememberLocationSpeaker(args);
         }
         return processed;
     } catch (error) {
@@ -1534,7 +1566,14 @@ async function onChatMessageForLocationMarker(...args) {
 }
 
 async function processLatestChatMessageMarker() {
-    return await onChatMessageForLocationMarker();
+    const chat = getSillyTavernContext()?.chat;
+    if (!Array.isArray(chat)) return false;
+    for (let index = chat.length - 1; index >= 0; index--) {
+        if (!chat[index]?.is_user && getReportedLocationName(chat[index]?.mes)) {
+            return await onChatMessageForLocationMarker(index);
+        }
+    }
+    return false;
 }
 
 async function restoreCurrentChatLocation() {

@@ -95,6 +95,8 @@ The last successful location is stored under a key composed from the selected lo
 2. Detect a marker, `Location:` declaration, or exact location name in the latest chat message.
 3. Use the configured start location.
 
+The first assistant directly answering a user message with a valid location becomes that chat's location reporter. Its speaker name is remembered. Location lines from other assistants in the same group chat are ignored, so a parallel character such as Drasa cannot replace the user-facing Narrator's tracked location.
+
 Normal prompts contain only `Current location:` and a compact one-line `Connected locations: A | B` list. Use the same pipe-separated format in the lorebook. Aliases are neither parsed, matched, validated, nor injected while `Include aliases` is disabled. Multi-hop may add up to `Max locations` additional managed nodes.
 
 ### No duplicate lorebook injection
