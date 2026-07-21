@@ -52,15 +52,13 @@ When `Use prompt injector` is off, all prompt insert controls are disabled.
 Default base prompt:
 
 ```text
-End with exactly one {{locationLine}} using a Current/Connected location; never invent one.
-If movement is unclear, use Current location.
+End with {{locationLine}}. Use only Current or Connected; if unsure, use Current.
 ```
 
 Example final injected prompt:
 
 ```text
-End with exactly one Location: Exact Location Node Name using a Current/Connected location; never invent one.
-If movement is unclear, use Current location.
+End with Location: Exact Location Node Name. Use only Current or Connected; if unsure, use Current.
 
 Current location: West Tower Entrance
 

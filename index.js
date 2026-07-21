@@ -1,4 +1,5 @@
 import { extension_settings, getContext } from '../../../extensions.js';
+import { saveWorldInfo } from '../../../world-info.js';
 
 const MODULE_NAME = 'location-background';
 const MODULE_LABEL = 'Location Background Manager';
@@ -61,9 +62,12 @@ const PREVIOUS_MINIMAL_LOCATION_PROMPT = [
     'Use an exact listed location; never invent one.',
     'If movement is unclear, keep the current location.',
 ].join('\n');
-const DEFAULT_LOCATION_PROMPT = [
+const PREVIOUS_CURRENT_LOCATION_PROMPT = [
     'End with exactly one {{locationLine}} using a Current/Connected location; never invent one.',
     'If movement is unclear, use Current location.',
+].join('\n');
+const DEFAULT_LOCATION_PROMPT = [
+    'End with {{locationLine}}. Use only Current or Connected; if unsure, use Current.',
 ].join('\n');
 const LEGACY_CONNECTED_LOCATIONS_BLOCK = [
     'Use connected locations as the preferred next choices from the current node.',
@@ -219,7 +223,7 @@ function getSettings() {
         }
     }
 
-    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE, LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES, PREVIOUS_LOCATION_PROMPT, PREVIOUS_MINIMAL_LOCATION_PROMPT].includes(settings.locationPrompt)) {
+    if ([LEGACY_LOCATION_PROMPT, LEGACY_SELECTED_LOREBOOK_LOCATION_PROMPT, LEGACY_LOCATION_PROMPT_WITH_ALIAS_RULE, LEGACY_LOCATION_PROMPT_WITH_CHOICE_RULES, PREVIOUS_LOCATION_PROMPT, PREVIOUS_MINIMAL_LOCATION_PROMPT, PREVIOUS_CURRENT_LOCATION_PROMPT].includes(settings.locationPrompt)) {
         settings.locationPrompt = DEFAULT_LOCATION_PROMPT;
     }
 
@@ -687,14 +691,7 @@ async function fetchWorldBook(worldName) {
 
 async function saveActiveWorldBook() {
     if (!activeWorldName || !activeWorldData) return false;
-    const response = await fetch('/api/worldinfo/edit', {
-        method: 'POST',
-        headers: getSillyTavernHeaders(),
-        body: JSON.stringify({ name: activeWorldName, data: activeWorldData }),
-    });
-    if (!response.ok) {
-        throw new Error(`Could not update lorebook "${activeWorldName}": ${response.status} ${response.statusText}`);
-    }
+    await saveWorldInfo(activeWorldName, activeWorldData, true);
     return true;
 }
 
